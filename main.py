@@ -2,7 +2,7 @@ import asyncio
 import os
 import re
 from datetime import datetime, timezone, timedelta
-from telethon import TelegramClient, events
+from telethon import TelegramClient, events, errors
 from telethon.sessions import StringSession
 from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.types import InputMediaDice
@@ -21,7 +21,7 @@ client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
 # ═══════════ ساعت زنده با فونت ریز ═══════════
 SMALL = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',':':'ː'}
-CLOCK_RE = re.compile(r'[⁰¹²³⁴⁵۷۸۹ː\s]+$')
+CLOCK_RE = re.compile(r'[⁰¹²³⁴۵۶۸۹\s]+$')
 
 def small_time():
     tz = timezone(timedelta(hours=3, minutes=30))
@@ -73,10 +73,23 @@ async def game_fix(event):
             if val == target:
                 print(f'[GAME] got {val} - stop', flush=True)
                 break
-            await msg.delete()
-            print(f'[GAME] deleted value={val}', flush=True)
+            try:
+                await msg.delete()
+                print(f'[GAME] deleted value={val}', flush=True)
+            except errors.FloodWaitError as e:
+                print(f'[GAME] floodwait {e.seconds}s', flush=True)
+                await asyncio.sleep(e.seconds + 1)
+                continue
+            except Exception as e:
+                print(f'[GAME] delete failed: {e}', flush=True)
+                break
             await asyncio.sleep(0.1)
-            msg = await client.send_file(event.chat_id, InputMediaDice(emoticon=emoji))
+            try:
+                msg = await client.send_file(event.chat_id, InputMediaDice(emoticon=emoji))
+            except errors.FloodWaitError as e:
+                print(f'[GAME] floodwait on send {e.seconds}s', flush=True)
+                await asyncio.sleep(e.seconds + 1)
+                continue
             await asyncio.sleep(0.25)
             cur = await client.get_messages(event.chat_id, ids=msg.id)
             val = cur.dice.value if (cur and cur.dice) else None
@@ -144,7 +157,18 @@ async def main():
     asyncio.create_task(clock_loop())
     print('🚀 سلف‌بات فعال شد!', flush=True)
     print(f'[INIT] GAME_MODE={GAME_MODE}', flush=True)
-    await client.run_until_disconnected()
+    while True:
+        try:
+            await client.run_until_disconnected()
+            break
+        except Exception as e:
+            print(f'[MAIN] connection lost: {e} - reconnecting in 5s...', flush=True)
+            await asyncio.sleep(5)
+            try:
+                if not client.is_connected():
+                    await client.connect()
+            except Exception as e2:
+                print(f'[MAIN] reconnect failed: {e2}', flush=True)
 
 if __name__ == '__main__':
     asyncio.run(main())
