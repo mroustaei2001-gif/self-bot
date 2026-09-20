@@ -18,8 +18,9 @@ BASE_LAST = ''
 
 client = TelegramClient(StringSession(STRING_SESSION), API_ID, API_HASH)
 
+# ═══════════ ساعت زنده با فونت ریز ═══════════
 SMALL = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹',':':'ː'}
-CLOCK_RE = re.compile(r'[\s⁰¹²³⁴⁵⁶⁷۸۹ː]+$')
+CLOCK_RE = re.compile(r'[⁰¹²³⁴⁵۷۸۹ː\s]+$')
 
 def small_time():
     tz = timezone(timedelta(hours=3, minutes=30))
@@ -38,6 +39,7 @@ async def clock_loop():
             pass
         await asyncio.sleep(10)
 
+# ═══════════ مود بازی ═══════════
 GAME_TARGETS = {'🎲': 6, '🎯': 6, '🏀': 5, '⚽': 5, '🎳': 6}
 
 @client.on(events.NewMessage(pattern=r'^/game\s+(on|off)$', chats='me'))
@@ -57,7 +59,7 @@ async def game_fix(event):
         return
     if not event.message.dice:
         return
-    emoji = event.message.dice.emoji
+    emoji = event.message.dice.emoticon or ''
     target = GAME_TARGETS.get(emoji)
     if target is None:
         return
@@ -83,6 +85,7 @@ async def game_fix(event):
     finally:
         GAME_BUSY = False
 
+# ═══════════ دستور ساعت ═══════════
 @client.on(events.NewMessage(pattern=r'^/clock\s+(on|off)$', chats='me'))
 async def clock_cmd(event):
     global CLOCK_ON, BASE_LAST
@@ -97,6 +100,7 @@ async def clock_cmd(event):
         await client(UpdateProfileRequest(last_name=BASE_LAST))
         await event.edit('🕐 ساعت خاموش شد و اسم برگشت.')
 
+# ═══════════ دستورات پایه ═══════════
 @client.on(events.NewMessage(pattern=r'^/ping$', chats='me'))
 async def ping(event):
     await event.edit('🏓 پونگ! سلف‌بات زنده است.')
