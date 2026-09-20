@@ -5,6 +5,7 @@ from datetime import datetime, timezone, timedelta
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 from telethon.tl.functions.account import UpdateProfileRequest
+from telethon.tl.types import InputMediaDice
 
 API_ID = int(os.getenv('API_ID', '0'))
 API_HASH = os.getenv('API_HASH', '')
@@ -63,25 +64,25 @@ async def game_fix(event):
     target = GAME_TARGETS.get(emoji)
     if target is None:
         return
-    print(f'[GAME] dice {emoji} detected in chat {event.chat_id}', flush=True)
+    print(f'[GAME] dice {emoji} in chat {event.chat_id}', flush=True)
     GAME_BUSY = True
     try:
         msg = event.message
-        for i in range(20):
-            await asyncio.sleep(0.4)
+        val = msg.dice.value
+        for i in range(12):
+            if val == target:
+                print(f'[GAME] got {val} - stop', flush=True)
+                break
+            await msg.delete()
+            print(f'[GAME] deleted value={val}', flush=True)
+            await asyncio.sleep(0.1)
+            msg = await client.send_file(event.chat_id, InputMediaDice(emoticon=emoji))
+            await asyncio.sleep(0.25)
             cur = await client.get_messages(event.chat_id, ids=msg.id)
             val = cur.dice.value if (cur and cur.dice) else None
             print(f'[GAME] try {i}: value={val}', flush=True)
-            if val == target:
-                break
-            try:
-                await msg.delete()
-                print(f'[GAME] deleted msg {msg.id}', flush=True)
-            except Exception as e:
-                print(f'[GAME] delete failed: {e}', flush=True)
-                break
-            await asyncio.sleep(0.2)
-            msg = await client.send_message(event.chat_id, emoji)
+    except Exception as e:
+        print(f'[GAME] error: {e}', flush=True)
     finally:
         GAME_BUSY = False
 
