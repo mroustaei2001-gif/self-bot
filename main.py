@@ -277,7 +277,7 @@ async def clock_loop():
             import traceback
             traceback.print_exc()
         
-        await asyncio.sleep(30)  # هر 30 ثانیه چک کن
+        await asyncio.sleep(10)  # هر 30 ثانیه چک کن
 
 async def probe_loop():
     while True:
