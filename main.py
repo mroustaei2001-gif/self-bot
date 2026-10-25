@@ -154,30 +154,36 @@ def small_time_with_font(font):
         table[ord(char)] = font['d'][i]
     table[ord(':')] = font['c']
     return time_str.translate(table)
+  def visual_len(name):
+    """محاسبه طول واقعی نام بدون کاراکترهای ترکیبی نامرئی"""
+    import unicodedata as ud
+    count = 0
+    for ch in name:
+        cat = ud.category(ch)
+        # کاراکترهای قابل مشاهده + نیم‌فاصله‌های مجاز
+        if cat not in ('Mn', 'Mc', 'Me', 'Cf', 'Cc', 'Cs'):
+            count += 1
+        elif ch in ('\u200c', '\u200d', '\u200e', '\u200f', '\u2060', '\ufeff'):
+            count += 1  # نیم‌فاصله‌های مجاز شمرده شوند
+    return count
 def safe_name_part(name):
     name = name or ''
-    # برش امن UTF-8: جلوگیری از قطع شدن در وسط کاراکتر ترکیبی
-    try:
-        # ابتدا نام را نرمال‌سازی کن (حذف کاراکترهای کنترل نامرئی)
-        import unicodedata as ud
-        cleaned = ''.join(
-            ch for ch in name
-            if ud.category(ch) not in ('Cc', 'Cf') or ch in ('\u200c', '\u200d', '\u200e', '\u200f')
-        )
-        # برش با در نظر گرفتن clusterهای گرافمی
-        result = []
-        char_count = 0
-        i = 0
-        while i < len(cleaned) and char_count < MAX_NAME_LEN:
-            ch = cleaned[i]
-            result.append(ch)
-            # اگر کاراکتر بعدی combining است، آن را هم بگیر
-            while i + 1 < len(cleaned) and ud.category(cleaned[i + 1]) in ('Mn', 'Mc', 'Me'):
-                i += 1
-                result.append(cleaned[i])
-            i += 1
-            char_count += 1
-        return ''.join(result)
+    import unicodedata as ud
+    # برش امن: فقط کاراکترهای قابل مشاهده را بشمار
+    result = []
+    v_count = 0
+    for ch in name:
+        cat = ud.category(ch)
+        is_combining = cat in ('Mn', 'Mc', 'Me')
+        is_control = cat in ('Cf', 'Cc', 'Cs') and ch not in ('\u200c', '\u200d', '\u200e', '\u200f', '\u2060', '\ufeff')
+        if is_control:
+            continue  # کاراکترهای کنترل نامرئی را حذف کن
+        result.append(ch)
+        if not is_combining:
+            v_count += 1
+        if v_count >= MAX_NAME_LEN:
+            break
+    return ''.join(result)
     except Exception:
         return name[:MAX_NAME_LEN]
 def fa_now():
