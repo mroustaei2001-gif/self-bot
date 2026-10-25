@@ -169,62 +169,68 @@ async def fetch_text(url, timeout=20):
             return r.read().decode('utf-8', errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 async def get_usd_toman():
+    # منبع ۱: Bonbast (بازار آزاد)
     try:
-        d=await fetch_json('https://api.tgju.org/v2/market/indicator/summary-table-data-usd')
-        data=d.get('data',{})if isinstance(d,dict)else{}
-        item=data.get('usd')or data.get('USD')if isinstance(data,dict)else None
-        if isinstance(item,dict)and item.get('price'):
-            v=int(str(item['price']).replace(',',''));print(f'[PRICE] usd(tgju)={v}',flush=True);return v,'آزاد'
-    except Exception as e:print(f'[PRICE] tgju failed: {e}',flush=True)
+        d=await fetch_json('https://api.bonbast.com/v1/currency/usd',timeout=10)
+        if d.get('data')and d['data'].get('price'):
+            v=int(d['data']['price'])
+            print(f'[PRICE] usd(bonbast)={v}',flush=True)
+            return v,'آزاد'
+    except Exception as e:print(f'[PRICE] bonbast failed: {e}',flush=True)
+    # منبع ۲: Navasan
     try:
-        d=await fetch_json('https://chand.com/api/v1/prices')
-        usd=d.get('usd',{}).get('price')
-        if usd:v=int(usd);print(f'[PRICE] usd(chand)={v}',flush=True);return v,'chand'
-    except Exception as e:print(f'[PRICE] chand failed: {e}',flush=True)
+        d=await fetch_json('https://api.navasan.tech/latest/?api_key=free&base=usd&to=irr',timeout=10)
+        if d.get('usd'):
+            v=int(float(d['usd']['price']))
+            print(f'[PRICE] usd(navasan)={v}',flush=True)
+            return v,'آزاد'
+    except Exception as e:print(f'[PRICE] navasan failed: {e}',flush=True)
+    # منبع ۳: Currency API (رسمی)
     try:
-        d=await fetch_json('https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/irr.json')
+        d=await fetch_json('https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/irr.json',timeout=10)
         irr=d.get('irr')
         if irr:v=int(irr/10);print(f'[PRICE] usd(currency-api)={v}',flush=True);return v,'رسمی'
     except Exception as e:print(f'[PRICE] currency-api failed: {e}',flush=True)
+    # منبع ۴: Open Exchange Rate
     try:
-        d=await fetch_json('https://open.er-api.com/v6/latest/USD')
+        d=await fetch_json('https://open.er-api.com/v6/latest/USD',timeout=10)
         irr=d.get('rates',{}).get('IRR')
         if irr:v=int(irr/10);print(f'[PRICE] usd(er-api)={v}',flush=True);return v,'رسمی'
     except Exception as e:print(f'[PRICE] er-api failed: {e}',flush=True)
     return None,None
 async def get_btc_usd():
+    # منبع ۱: Binance
     try:
-        d=await fetch_json('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT')
+        d=await fetch_json('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',timeout=10)
         v=float(d['price']);print(f'[PRICE] btc(binance)={v}',flush=True);return v
-    except Exception:pass
+    except Exception as e:print(f'[PRICE] binance failed: {e}',flush=True)
+    # منبع ۲: OKX
     try:
-        d=await fetch_json('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT')
+        d=await fetch_json('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT',timeout=10)
         v=float(d['data'][0]['last']);print(f'[PRICE] btc(okx)={v}',flush=True);return v
-    except Exception:pass
+    except Exception as e:print(f'[PRICE] okx failed: {e}',flush=True)
+    # منبع : CoinGecko
     try:
-        d=await fetch_json('https://chand.com/api/v1/prices')
-        btc=d.get('btc',{}).get('price')
-        if btc:v=float(btc);print(f'[PRICE] btc(chand)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] chand btc failed: {e}',flush=True)
-    try:
-        d=await fetch_json('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        d=await fetch_json('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',timeout=10)
         v=float(d['bitcoin']['usd']);print(f'[PRICE] btc(coingecko)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] btc failed: {e}',flush=True)
+    except Exception as e:print(f'[PRICE] coingecko failed: {e}',flush=True)
     return None
 async def get_gold_oz_usd():
+    # منبع ۱: Gold API
     try:
-        d=await fetch_json('https://api.gold-api.com/price/XAU')
+        d=await fetch_json('https://api.gold-api.com/price/XAU',timeout=10)
         v=float(d['price']);print(f'[PRICE] gold(gold-api)={v}',flush=True);return v
     except Exception as e:print(f'[PRICE] gold-api failed: {e}',flush=True)
+    # منبع ۲: GoldPrice.org
     try:
-        d=await fetch_json('https://chand.com/api/v1/prices')
-        gold=d.get('gold',{}).get('price')
-        if gold:v=float(gold);print(f'[PRICE] gold(chand)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] chand gold failed: {e}',flush=True)
-    try:
-        d=await fetch_json('https://data-asg.goldprice.org/dbXRates/USD')
+        d=await fetch_json('https://data-asg.goldprice.org/dbXRates/USD',timeout=10)
         v=float(d['items'][0]['xauPrice']);print(f'[PRICE] gold(goldprice)={v}',flush=True);return v
     except Exception as e:print(f'[PRICE] goldprice failed: {e}',flush=True)
+    # منبع ۳: Metalprice API
+    try:
+        d=await fetch_json('https://api.metalpriceapi.com/v1/latest?api_key=demo&base=XAU&currencies=USD',timeout=10)
+        v=float(d.get('rates',{}).get('XAUUSD',0));print(f'[PRICE] gold(metalprice)={v}',flush=True);return v
+    except Exception as e:print(f'[PRICE] metalprice failed: {e}',flush=True)
     return None
 def slash_fmt(n):
     if n is None:
