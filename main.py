@@ -169,86 +169,112 @@ async def fetch_text(url, timeout=20):
             return r.read().decode('utf-8', errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 async def get_usd_toman():
-    # منبع ۱: ExchangeRate API (نرخ رسمی)
+    # منبع ۱: Navasan (نرخ بازار آزاد - رایگان)
     try:
-        d=await fetch_json('https://open.er-api.com/v6/latest/USD',timeout=10)
-        irr=d.get('rates',{}).get('IRR')
-        if irr:
-            v_official=int(irr/10)
-            # ضریب بازار آزاد ≈ 1.58 برابر نرخ رسمی
-            v=int(v_official*1.58)
-            print(f'[PRICE] usd(er-api official={v_official}, free={v})',flush=True)
-            return v,'آزاد'
-    except Exception as e:print(f'[PRICE] er-api failed: {e}',flush=True)
-    # منبع ۲: Frankfurter
+        d = await fetch_json('https://api.navasan.tech/latest/?api_key=free&base=usd&to=irr', timeout=10)
+        if d.get('usd') and d['usd'].get('price'):
+            v = int(float(d['usd']['price']))
+            print(f'[PRICE] usd(navasan)={v}', flush=True)
+            return v, 'آزاد'
+    except Exception as e:
+        print(f'[PRICE] navasan failed: {e}', flush=True)
+    
+    # منبع ۲: Alanchand (تستی - بازار آزاد)
     try:
-        d=await fetch_json('https://api.frankfurter.app/latest?from=USD&to=IRR',timeout=10)
-        irr=d.get('rates',{}).get('IRR')
-        if irr:
-            v_official=int(irr)
-            v=int(v_official*1.58)
-            print(f'[PRICE] usd(frankfurter official={v_official}, free={v})',flush=True)
-            return v,'آزاد'
-    except Exception as e:print(f'[PRICE] frankfurter failed: {e}',flush=True)
-    # منبع ۳: CurrencyAPI
+        d = await fetch_json('https://alanchand.com/api/v1/prices', timeout=10)
+        if d.get('usd') and d['usd'].get('price'):
+            v = int(d['usd']['price'])
+            print(f'[PRICE] usd(alanchand)={v}', flush=True)
+            return v, 'آزاد'
+    except Exception as e:
+        print(f'[PRICE] alanchand failed: {e}', flush=True)
+
+    # منبع ۳: محاسبه تقریبی از نرخ رسمی (آخرین راه‌حل)
     try:
-        d=await fetch_json('https://api.currencyapi.com/v3/latest?apikey=cur_live_1234&currencies=IRR',timeout=10)
-        irr=d.get('data',{}).get('IRR',{}).get('value')
+        d = await fetch_json('https://open.er-api.com/v6/latest/USD', timeout=10)
+        irr = d.get('rates', {}).get('IRR')
         if irr:
-            v_official=int(irr)
-            v=int(v_official*1.58)
-            print(f'[PRICE] usd(currencyapi official={v_official}, free={v})',flush=True)
-            return v,'آزاد'
-    except Exception as e:print(f'[PRICE] currencyapi failed: {e}',flush=True)
-    return None,None
+            v_official = int(irr / 10)
+            v_free = int(v_official * 1.58)  # ضریب تقریبی بازار آزاد
+            print(f'[PRICE] usd(er-api approx)={v_free}', flush=True)
+            return v_free, 'آزاد (تقریبی)'
+    except Exception as e:
+        print(f'[PRICE] er-api failed: {e}', flush=True)
+        
+    return None, None
 async def get_btc_usd():
-    # منبع ۱: Binance
+    # منبع ۱: CoinGecko (پایدارترین و دقیق‌ترین API رایگان جهانی)
     try:
-        d=await fetch_json('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT',timeout=10)
-        v=float(d['price']);print(f'[PRICE] btc(binance)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] binance failed: {e}',flush=True)
-    # منبع ۲: OKX
+        d = await fetch_json('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd', timeout=10)
+        if d.get('bitcoin') and d['bitcoin'].get('usd'):
+            v = float(d['bitcoin']['usd'])
+            print(f'[PRICE] btc(coingecko)={v}', flush=True)
+            return v
+    except Exception as e:
+        print(f'[PRICE] coingecko failed: {e}', flush=True)
+
+    # منبع ۲: OKX (صرافی معتبر جایگزین بایننس)
     try:
-        d=await fetch_json('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT',timeout=10)
-        v=float(d['data'][0]['last']);print(f'[PRICE] btc(okx)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] okx failed: {e}',flush=True)
-    # منبع : CoinGecko
+        d = await fetch_json('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT', timeout=10)
+        if d.get('data') and len(d['data']) > 0:
+            v = float(d['data'][0]['last'])
+            print(f'[PRICE] btc(okx)={v}', flush=True)
+            return v
+    except Exception as e:
+        print(f'[PRICE] okx failed: {e}', flush=True)
+
+    # منبع ۳: CoinCap (پشتیبان نهایی)
     try:
-        d=await fetch_json('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd',timeout=10)
-        v=float(d['bitcoin']['usd']);print(f'[PRICE] btc(coingecko)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] coingecko failed: {e}',flush=True)
+        d = await fetch_json('https://api.coincap.io/v2/assets/bitcoin', timeout=10)
+        if d.get('data') and d['data'].get('priceUsd'):
+            v = float(d['data']['priceUsd'])
+            print(f'[PRICE] btc(coincap)={v}', flush=True)
+            return v
+    except Exception as e:
+        print(f'[PRICE] coincap failed: {e}', flush=True)
+
     return None
 async def get_gold_oz_usd():
-    # منبع ۱: Gold API
     try:
-        d=await fetch_json('https://api.gold-api.com/price/XAU',timeout=10)
-        v=float(d['price']);print(f'[PRICE] gold(gold-api)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] gold-api failed: {e}',flush=True)
-    # منبع ۲: GoldPrice.org
+        d = await fetch_json('https://api.gold-api.com/price/XAU', timeout=10)
+        v = float(d['price'])
+        print(f'[PRICE] gold(gold-api)={v}', flush=True)
+        return v
+    except Exception as e:
+        print(f'[PRICE] gold-api failed: {e}', flush=True)
+    
     try:
-        d=await fetch_json('https://data-asg.goldprice.org/dbXRates/USD',timeout=10)
-        v=float(d['items'][0]['xauPrice']);print(f'[PRICE] gold(goldprice)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] goldprice failed: {e}',flush=True)
-    # منبع ۳: Metalprice API
-    try:
-        d=await fetch_json('https://api.metalpriceapi.com/v1/latest?api_key=demo&base=XAU&currencies=USD',timeout=10)
-        v=float(d.get('rates',{}).get('XAUUSD',0));print(f'[PRICE] gold(metalprice)={v}',flush=True);return v
-    except Exception as e:print(f'[PRICE] metalprice failed: {e}',flush=True)
+        d = await fetch_json('https://data-asg.goldprice.org/dbXRates/USD', timeout=10)
+        v = float(d['items'][0]['xauPrice'])
+        print(f'[PRICE] gold(goldprice)={v}', flush=True)
+        return v
+    except Exception as e:
+        print(f'[PRICE] goldprice failed: {e}', flush=True)
+        
     return None
 def slash_fmt(n):
     if n is None:
         return '—'
     return f'{int(round(n)):,}'.replace(',', '/')
 async def build_bio():
-    usd_toman,label=await get_usd_toman();btc_usd=await get_btc_usd();gold_oz_usd=await get_gold_oz_usd()
-    gold_gram_toman=None
-    if gold_oz_usd and usd_toman:gold_gram_toman=(gold_oz_usd/31.1035)*0.75*usd_toman
-    parts=[]
-    if usd_toman:parts.append(f'dollrs {slash_fmt(usd_toman)}')
-    if btc_usd:parts.append(f'B {int(round(btc_usd/1000))} k')
-    if gold_gram_toman:parts.append(f'Gold {slash_fmt(gold_gram_toman)}')
-    bio=' / '.join(parts)
-    return '\u200e'+bio if bio else None
+    usd_toman, label = await get_usd_toman()
+    btc_usd = await get_btc_usd()
+    gold_oz_usd = await get_gold_oz_usd()
+    
+    gold_gram_toman = None
+    if gold_oz_usd and usd_toman:
+        gold_gram_toman = (gold_oz_usd / 31.1035) * 0.75 * usd_toman
+
+    parts = []
+    if usd_toman:
+        parts.append(f'dollrs {slash_fmt(usd_toman)}')
+    if btc_usd:
+        parts.append(f'B {int(round(btc_usd / 1000))} k')
+    if gold_gram_toman:
+        parts.append(f'Gold {slash_fmt(gold_gram_toman)}')
+        
+    bio = ' / '.join(parts)
+    return '\u200e' + bio if bio else None
 async def update_bio(new_bio):
     global last_bio
     if new_bio == last_bio:
