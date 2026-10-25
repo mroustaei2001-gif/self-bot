@@ -169,29 +169,41 @@ async def fetch_text(url, timeout=20):
             return r.read().decode('utf-8', errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 async def get_usd_toman():
-    # منبع ۱: Bonbast (بازار آزاد)
+    # منبع ۱: Chand.ir
     try:
-        d=await fetch_json('https://api.bonbast.com/v1/currency/usd',timeout=10)
-        if d.get('data')and d['data'].get('price'):
-            v=int(d['data']['price'])
-            print(f'[PRICE] usd(bonbast)={v}',flush=True)
+        d=await fetch_json('https://chand.ir/api/v1/prices',timeout=10)
+        if d.get('usd'):
+            v=int(d['usd'].get('price',0))
+            print(f'[PRICE] usd(chand)={v}',flush=True)
             return v,'آزاد'
-    except Exception as e:print(f'[PRICE] bonbast failed: {e}',flush=True)
-    # منبع ۲: Navasan
+    except Exception as e:print(f'[PRICE] chand failed: {e}',flush=True)
+    # منبع ۲: ArzPlus
+    try:
+        d=await fetch_json('https://api.arzplus.com/v1/currency',timeout=10)
+        if d.get('data'):
+            for item in d['data']:
+                if item.get('title')=='دلار آمریکا':
+                    v=int(item.get('price',0))
+                    print(f'[PRICE] usd(arzplus)={v}',flush=True)
+                    return v,'آزاد'
+    except Exception as e:print(f'[PRICE] arzplus failed: {e}',flush=True)
+    # منبع ۳: Valutka
+    try:
+        d=await fetch_json('https://api.valutka.com/v1/rates?from=USD&to=IRR',timeout=10)
+        if d.get('data'):
+            v=int(float(d['data'][0].get('rate',0)))
+            print(f'[PRICE] usd(valutka)={v}',flush=True)
+            return v,'آزاد'
+    except Exception as e:print(f'[PRICE] valutka failed: {e}',flush=True)
+    # منبع ۴: Navasan (API key رایگان)
     try:
         d=await fetch_json('https://api.navasan.tech/latest/?api_key=free&base=usd&to=irr',timeout=10)
         if d.get('usd'):
-            v=int(float(d['usd']['price']))
+            v=int(float(d['usd'].get('price',0)))
             print(f'[PRICE] usd(navasan)={v}',flush=True)
             return v,'آزاد'
     except Exception as e:print(f'[PRICE] navasan failed: {e}',flush=True)
-    # منبع ۳: Currency API (رسمی)
-    try:
-        d=await fetch_json('https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/irr.json',timeout=10)
-        irr=d.get('irr')
-        if irr:v=int(irr/10);print(f'[PRICE] usd(currency-api)={v}',flush=True);return v,'رسمی'
-    except Exception as e:print(f'[PRICE] currency-api failed: {e}',flush=True)
-    # منبع ۴: Open Exchange Rate
+    # منبع ۵: er-api (رسمی - آخرین گزینه)
     try:
         d=await fetch_json('https://open.er-api.com/v6/latest/USD',timeout=10)
         irr=d.get('rates',{}).get('IRR')
