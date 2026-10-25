@@ -55,7 +55,7 @@ TRIED_OWNERS = set()
 SPAM_LOCK = False
 COMMON_BUSY = False
 PRICE_ON = os.getenv('PRICE_ON', '1') == '1'
-PRICE_INTERVAL = int(os.getenv('PRICE_INTERVAL', '600'))
+PRICE_INTERVAL = int(os.getenv('PRICE_INTERVAL', '300'))
 last_bio = ''
 NAMES = []
 NAMES_PATH = '/data/names.json'
