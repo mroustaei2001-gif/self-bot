@@ -154,22 +154,21 @@ def small_time_with_font(font):
         table[ord(char)] = font['d'][i]
     table[ord(':')] = font['c']
     return time_str.translate(table)
-  def visual_len(name):
-    """محاسبه طول واقعی نام بدون کاراکترهای ترکیبی نامرئی"""
+def visual_len(name):
+    name = name or ''
     import unicodedata as ud
     count = 0
     for ch in name:
         cat = ud.category(ch)
-        # کاراکترهای قابل مشاهده + نیم‌فاصله‌های مجاز
         if cat not in ('Mn', 'Mc', 'Me', 'Cf', 'Cc', 'Cs'):
             count += 1
         elif ch in ('\u200c', '\u200d', '\u200e', '\u200f', '\u2060', '\ufeff'):
-            count += 1  # نیم‌فاصله‌های مجاز شمرده شوند
+            count += 1
     return count
+
 def safe_name_part(name):
     name = name or ''
     import unicodedata as ud
-    # برش امن: فقط کاراکترهای قابل مشاهده را بشمار
     result = []
     v_count = 0
     for ch in name:
@@ -177,7 +176,7 @@ def safe_name_part(name):
         is_combining = cat in ('Mn', 'Mc', 'Me')
         is_control = cat in ('Cf', 'Cc', 'Cs') and ch not in ('\u200c', '\u200d', '\u200e', '\u200f', '\u2060', '\ufeff')
         if is_control:
-            continue  # کاراکترهای کنترل نامرئی را حذف کن
+            continue
         result.append(ch)
         if not is_combining:
             v_count += 1
