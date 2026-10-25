@@ -119,16 +119,19 @@ def load_names():
         print('[NAMES] لیست اسم‌ها ریست شد', flush=True)
         return
     try:
-        with open(NAMES_PATH) as f:
+        with open(NAMES_PATH, 'r', encoding='utf-8') as f:
             NAMES = json.load(f)
-    except Exception:
+        # پاکسازی نام‌های خراب
+        NAMES = [n for n in NAMES if isinstance(n, str) and len(n) > 0]
+    except Exception as e:
+        print(f'[NAMES] load error: {e}', flush=True)
         NAMES = []
 def save_names():
     try:
-        with open(NAMES_PATH, 'w') as f:
-            json.dump(NAMES, f)
-    except Exception:
-        pass
+        with open(NAMES_PATH, 'w', encoding='utf-8') as f:
+            json.dump(NAMES, f, ensure_ascii=False)
+    except Exception as e:
+        print(f'[NAMES] save error: {e}', flush=True)
 def rebuild_clock_re():
     global CLOCK_RE
     allc = ''.join(f['d'] for f in FONTS + CUSTOM_FONTS) + ''.join(f['c'] for f in FONTS + CUSTOM_FONTS)
@@ -152,7 +155,31 @@ def small_time_with_font(font):
     table[ord(':')] = font['c']
     return time_str.translate(table)
 def safe_name_part(name):
-    return (name or '')[:MAX_NAME_LEN]
+    name = name or ''
+    # برش امن UTF-8: جلوگیری از قطع شدن در وسط کاراکتر ترکیبی
+    try:
+        # ابتدا نام را نرمال‌سازی کن (حذف کاراکترهای کنترل نامرئی)
+        import unicodedata as ud
+        cleaned = ''.join(
+            ch for ch in name
+            if ud.category(ch) not in ('Cc', 'Cf') or ch in ('\u200c', '\u200d', '\u200e', '\u200f')
+        )
+        # برش با در نظر گرفتن clusterهای گرافمی
+        result = []
+        char_count = 0
+        i = 0
+        while i < len(cleaned) and char_count < MAX_NAME_LEN:
+            ch = cleaned[i]
+            result.append(ch)
+            # اگر کاراکتر بعدی combining است، آن را هم بگیر
+            while i + 1 < len(cleaned) and ud.category(cleaned[i + 1]) in ('Mn', 'Mc', 'Me'):
+                i += 1
+                result.append(cleaned[i])
+            i += 1
+            char_count += 1
+        return ''.join(result)
+    except Exception:
+        return name[:MAX_NAME_LEN]
 def fa_now():
     tz = timezone(timedelta(hours=3, minutes=30))
     return datetime.now(tz).strftime('%Y/%m/%d %H:%M')
