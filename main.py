@@ -63,13 +63,13 @@ LAST_MSG_BY_USER = {}
 PENDING_MENTION = {}
 client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 RAW_FONTS = [
-    {'d': '⁰¹²³⁴⁵⁶⁷⁸⁹', 'c': 'ː'},
-    {'d': '₀₁₂₃₄₅₆₈₉', 'c': ':'},
-    {'d': '𝟘𝟙𝟛𝟜𝟝𝟟𝟠𝟡', 'c': ':'},
-    {'d': '𝟣𝟤𝟥𝟧𝟨𝟩𝟫', 'c': ':'},
+    {'d':'⁰¹²³⁴⁵⁶⁸⁹','c':'ː'},
+    {'d': '₀₁₂₃₄₅₆₇₈₉', 'c': ':'},
+    {'d': '𝟘𝟙𝟚𝟛𝟜𝟝𝟟𝟠𝟡', 'c': ':'},
+    {'d': '0𝟣𝟤𝟥4𝟧𝟨𝟩8𝟫', 'c': ':'},
     {'d': '𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗', 'c': ':'},
     {'d': '𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿', 'c': ':'},
-    {'d': '⓪①③④⑤⑥⑦⑨', 'c': ':'},
+    {'d': '⓪①②③④⑤⑥⑦⑧⑨', 'c': ':'},
     {'d': '0123456789', 'c': ':'},
     {'d': '۰۱۲۳۴۵۶۷۸۹', 'c': ':'},
     {'d': '٠١٢٣٤٥٦٧٨٩', 'c': ':'},
@@ -170,93 +170,76 @@ async def fetch_text(url, timeout=20):
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 async def get_usd_toman():
     try:
-        d = await fetch_json('https://api.tgju.org/v2/market/indicator/summary-table-data-usd')
-        data = d.get('data', {}) if isinstance(d, dict) else {}
-        item = data.get('usd') or data.get('USD') if isinstance(data, dict) else None
-        if isinstance(item, dict) and item.get('price'):
-            v = int(str(item['price']).replace(',', ''))
-            print(f'[PRICE] usd(tgju)={v}', flush=True)
-            return v, 'آزاد'
-    except Exception as e:
-        print(f'[PRICE] tgju failed: {e}', flush=True)
+        d=await fetch_json('https://api.tgju.org/v2/market/indicator/summary-table-data-usd')
+        data=d.get('data',{})if isinstance(d,dict)else{}
+        item=data.get('usd')or data.get('USD')if isinstance(data,dict)else None
+        if isinstance(item,dict)and item.get('price'):
+            v=int(str(item['price']).replace(',',''));print(f'[PRICE] usd(tgju)={v}',flush=True);return v,'آزاد'
+    except Exception as e:print(f'[PRICE] tgju failed: {e}',flush=True)
     try:
-        d = await fetch_json('https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/irr.json')
-        irr = d.get('irr')
-        if irr:
-            v = int(irr / 10)
-            print(f'[PRICE] usd(currency-api)={v}', flush=True)
-            return v, 'رسمی'
-    except Exception as e:
-        print(f'[PRICE] currency-api failed: {e}', flush=True)
+        d=await fetch_json('https://chand.com/api/v1/prices')
+        usd=d.get('usd',{}).get('price')
+        if usd:v=int(usd);print(f'[PRICE] usd(chand)={v}',flush=True);return v,'chand'
+    except Exception as e:print(f'[PRICE] chand failed: {e}',flush=True)
     try:
-        d = await fetch_json('https://open.er-api.com/v6/latest/USD')
-        irr = d.get('rates', {}).get('IRR')
-        if irr:
-            v = int(irr / 10)
-            print(f'[PRICE] usd(er-api)={v}', flush=True)
-            return v, 'رسمی'
-    except Exception as e:
-        print(f'[PRICE] er-api failed: {e}', flush=True)
-    return None, None
+        d=await fetch_json('https://cdn.jsdelivr.net/gh/fawazahmed0/currency-api@1/latest/currencies/usd/irr.json')
+        irr=d.get('irr')
+        if irr:v=int(irr/10);print(f'[PRICE] usd(currency-api)={v}',flush=True);return v,'رسمی'
+    except Exception as e:print(f'[PRICE] currency-api failed: {e}',flush=True)
+    try:
+        d=await fetch_json('https://open.er-api.com/v6/latest/USD')
+        irr=d.get('rates',{}).get('IRR')
+        if irr:v=int(irr/10);print(f'[PRICE] usd(er-api)={v}',flush=True);return v,'رسمی'
+    except Exception as e:print(f'[PRICE] er-api failed: {e}',flush=True)
+    return None,None
 async def get_btc_usd():
     try:
-        d = await fetch_json('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT')
-        v = float(d['price'])
-        print(f'[PRICE] btc(binance)={v}', flush=True)
-        return v
-    except Exception:
-        pass
+        d=await fetch_json('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT')
+        v=float(d['price']);print(f'[PRICE] btc(binance)={v}',flush=True);return v
+    except Exception:pass
     try:
-        d = await fetch_json('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT')
-        v = float(d['data'][0]['last'])
-        print(f'[PRICE] btc(okx)={v}', flush=True)
-        return v
-    except Exception:
-        pass
+        d=await fetch_json('https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT')
+        v=float(d['data'][0]['last']);print(f'[PRICE] btc(okx)={v}',flush=True);return v
+    except Exception:pass
     try:
-        d = await fetch_json('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
-        v = float(d['bitcoin']['usd'])
-        print(f'[PRICE] btc(coingecko)={v}', flush=True)
-        return v
-    except Exception as e:
-        print(f'[PRICE] btc failed: {e}', flush=True)
+        d=await fetch_json('https://chand.com/api/v1/prices')
+        btc=d.get('btc',{}).get('price')
+        if btc:v=float(btc);print(f'[PRICE] btc(chand)={v}',flush=True);return v
+    except Exception as e:print(f'[PRICE] chand btc failed: {e}',flush=True)
+    try:
+        d=await fetch_json('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd')
+        v=float(d['bitcoin']['usd']);print(f'[PRICE] btc(coingecko)={v}',flush=True);return v
+    except Exception as e:print(f'[PRICE] btc failed: {e}',flush=True)
     return None
 async def get_gold_oz_usd():
     try:
-        d = await fetch_json('https://api.gold-api.com/price/XAU')
-        v = float(d['price'])
-        print(f'[PRICE] gold(gold-api)={v}', flush=True)
-        return v
-    except Exception as e:
-        print(f'[PRICE] gold-api failed: {e}', flush=True)
+        d=await fetch_json('https://api.gold-api.com/price/XAU')
+        v=float(d['price']);print(f'[PRICE] gold(gold-api)={v}',flush=True);return v
+    except Exception as e:print(f'[PRICE] gold-api failed: {e}',flush=True)
     try:
-        d = await fetch_json('https://data-asg.goldprice.org/dbXRates/USD')
-        v = float(d['items'][0]['xauPrice'])
-        print(f'[PRICE] gold(goldprice)={v}', flush=True)
-        return v
-    except Exception as e:
-        print(f'[PRICE] goldprice failed: {e}', flush=True)
+        d=await fetch_json('https://chand.com/api/v1/prices')
+        gold=d.get('gold',{}).get('price')
+        if gold:v=float(gold);print(f'[PRICE] gold(chand)={v}',flush=True);return v
+    except Exception as e:print(f'[PRICE] chand gold failed: {e}',flush=True)
+    try:
+        d=await fetch_json('https://data-asg.goldprice.org/dbXRates/USD')
+        v=float(d['items'][0]['xauPrice']);print(f'[PRICE] gold(goldprice)={v}',flush=True);return v
+    except Exception as e:print(f'[PRICE] goldprice failed: {e}',flush=True)
     return None
 def slash_fmt(n):
     if n is None:
         return '—'
     return f'{int(round(n)):,}'.replace(',', '/')
 async def build_bio():
-    usd_toman, label = await get_usd_toman()
-    btc_usd = await get_btc_usd()
-    gold_oz_usd = await get_gold_oz_usd()
-    gold_gram_toman = None
-    if gold_oz_usd and usd_toman:
-        gold_gram_toman = (gold_oz_usd / 31.1035) * 0.75 * usd_toman
-    lines = []
-    if usd_toman:
-        lines.append(f'dollrs {slash_fmt(usd_toman)}')
-    if btc_usd:
-        lines.append(f'B {int(round(btc_usd / 1000))} k')
-    if gold_gram_toman:
-        lines.append(f'Gold {slash_fmt(gold_gram_toman)}')
-    bio = '\n'.join(lines)
-    return '\u200e' + bio if bio else None
+    usd_toman,label=await get_usd_toman();btc_usd=await get_btc_usd();gold_oz_usd=await get_gold_oz_usd()
+    gold_gram_toman=None
+    if gold_oz_usd and usd_toman:gold_gram_toman=(gold_oz_usd/31.1035)*0.75*usd_toman
+    parts=[]
+    if usd_toman:parts.append(f'dollrs {slash_fmt(usd_toman)}')
+    if btc_usd:parts.append(f'B {int(round(btc_usd/1000))} k')
+    if gold_gram_toman:parts.append(f'Gold {slash_fmt(gold_gram_toman)}')
+    bio=' / '.join(parts)
+    return '\u200e'+bio if bio else None
 async def update_bio(new_bio):
     global last_bio
     if new_bio == last_bio:
