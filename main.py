@@ -947,7 +947,7 @@ async def name_cmd(event):
         if not rest:
             await event.edit(' /name add اسم')
             return
-        if len(rest) > MAX_NAME_LEN:
+        if visual_len(rest) > MAX_NAME_LEN:
             await event.edit(f'⚠️ حداکثر {MAX_NAME_LEN} کاراکتر')
             return
         NAMES.append(rest)
