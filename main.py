@@ -77,28 +77,41 @@ def save_names():
     except Exception as e:
         print(f'[NAMES] save error: {e}',flush=True)
 def visual_len(name):
-    name=name or ''
-    count=0
+    """فقط کاراکترهای پایه را می‌شمارد - Marks و Controls نادیده"""
+    name = name or ''
+    count = 0
     for ch in name:
-        cat=unicodedata.category(ch)
-        if cat not in('Mn','Mc','Me','Cf','Cc','Cs'):
-            count+=1
-        elif ch in('\u200c','\u200d','\u200e','\u200f','\u2060','\ufeff'):
-            count+=1
+        cat = unicodedata.category(ch)
+        # خط/پاراگراف separator → رد
+        if cat in ('Zl', 'Zp'):
+            continue
+        # Marks (Mn/Mc/Me) و Controls (Cf/Cc/Cs/Co/Cn) → رد
+        if cat[0] in ('M', 'C'):
+            continue
+        count += 1
     return count
 def safe_name_part(name):
-    name=name or ''
-    result=[]
-    v_count=0
+    """برش امن نام فقط بر اساس کاراکترهای پایه"""
+    name = name or ''
+    result = []
+    v_count = 0
     for ch in name:
-        cat=unicodedata.category(ch)
-        is_combining=cat in('Mn','Mc','Me')
-        is_control=cat in('Cf','Cc','Cs')and ch not in('\u200c','\u200d','\u200e','\u200f','\u2060','\ufeff')
-        if is_control:continue
+        cat = unicodedata.category(ch)
+        # خط/پاراگراف separator → حذف
+        if cat in ('Zl', 'Zp'):
+            continue
+        # Marks → نگه دار ولی نشمار (چون به حرف قبلی می‌چسبند)
+        if cat[0] == 'M':
+            result.append(ch)
+            continue
+        # Controls → حذف
+        if cat[0] == 'C':
+            continue
+        # کاراکتر پایه → نگه دار و بشمار
         result.append(ch)
-        if not is_combining:
-            v_count+=1
-        if v_count>=MAX_NAME_LEN:break
+        v_count += 1
+        if v_count >= MAX_NAME_LEN:
+            break
     return ''.join(result)
 def rebuild_clock_re():
     global CLOCK_RE
