@@ -193,9 +193,11 @@ async def get_channel_prices():
     if PRICE_BOT:
         try:
             ent=await client.get_entity(PRICE_BOT)
+            await client.send_message(ent,PRICE_BOT_CMD)
+            await asyncio.sleep(4)
             if PRICE_BOT_BTN:
                 clicked=False
-                for mg in await client.get_messages(ent,limit=5):
+                for mg in await client.get_messages(ent,limit=4):
                     if mg.buttons:
                         for row in mg.buttons:
                             for btn in row:
@@ -203,11 +205,9 @@ async def get_channel_prices():
                                     await btn.click();clicked=True;break
                             if clicked:break
                     if clicked:break
-                if not clicked:await client.send_message(ent,PRICE_BOT_CMD)
-            else:
-                await client.send_message(ent,PRICE_BOT_CMD)
-            await asyncio.sleep(5)
-            for mg in await client.get_messages(ent,limit=3):
+                print(f'[PRICE] bot button clicked={clicked}',flush=True)
+            await asyncio.sleep(4)
+            for mg in await client.get_messages(ent,limit=5):
                 r=parse_price_text(mg.text)
                 for k in res:
                     if res[k] is None and r.get(k):res[k]=r[k]
