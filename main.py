@@ -1,4 +1,4 @@
-import asyncio,os,re,json,time,unicodedata,urllib.request
+import asyncio,os,re,json,time,unicodedata,urllib.request,http.cookiejar
 from datetime import datetime,timezone,timedelta
 from telethon import TelegramClient,events,errors,types
 from telethon.sessions import StringSession
@@ -7,16 +7,8 @@ from telethon.tl.functions.account import UpdateProfileRequest
 from telethon.tl.functions.channels import GetParticipantsRequest,GetParticipantRequest
 from telethon.tl.functions.messages import GetFullChatRequest
 from telethon.tl.types import ChannelParticipantsAdmins,ChannelParticipantCreator,ChatParticipantCreator
-try:
-    from ddgs import DDGS
-    AI_AVAILABLE=True
-except Exception:
-    try:
-        from duckduckgo_search import DDGS
-        AI_AVAILABLE=True
-    except Exception:
-        AI_AVAILABLE=False
-BOT_VERSION='31-AIChat'
+AI_AVAILABLE=True
+BOT_VERSION='33-Final'
 API_ID=int(os.getenv('API_ID','0'));API_HASH=os.getenv('API_HASH','')
 GEN=os.getenv('GEN','0')=='1';WIPE=os.getenv('WIPE','0')=='1'
 RESET_NAMES=os.getenv('RESET_NAMES','0')=='1'
@@ -24,6 +16,10 @@ PHONE=os.getenv('PHONE','');CODE=os.getenv('CODE','');PASS2=os.getenv('PASS','')
 SESSION_PATH=os.getenv('SESSION_PATH','/data/sb')
 SESSION_STRING=os.getenv('SESSION_STRING','')
 PHONE_HASH=os.getenv('PHONE_HASH','');NTFY_TOPIC=os.getenv('NTFY_TOPIC','')
+PRICE_CHANNEL=os.getenv('PRICE_CHANNEL','@nerkhonlinechannel')
+PRICE_BOT=os.getenv('PRICE_BOT','@arnaeco_bot')
+PRICE_BOT_CMD=os.getenv('PRICE_BOT_CMD','/start')
+PRICE_BOT_BTN=os.getenv('PRICE_BOT_BTN','')
 MASTER_ON=True;GHOST_MODE=False;CLOCK_ON=False;BASE_LAST='';ME_ID=None
 TTL_SAVE=True;BAN_LOG=True;BAN_DEDUPE={};PMLOG_ON=True;PM_CACHE={}
 WATCH=set();WATCH_PATH='/data/watch.json';LAST_SEEN={};LAST_BTN=None;LAST_BTN_TEXTS=[]
@@ -32,7 +28,7 @@ CLICK_ON=True;CLICKS={};CLICKS_PATH='/data/clicks.json'
 OWNERS={};OWNERS_PATH='/data/owners.json';TRIED_OWNERS=set()
 SPAM_LOCK=False;COMMON_BUSY=False;AI_LOCK={}
 PRICE_ON=os.getenv('PRICE_ON','1')=='1'
-PRICE_INTERVAL=int(os.getenv('PRICE_INTERVAL','300'))
+PRICE_INTERVAL=int(os.getenv('PRICE_INTERVAL','600'))
 last_bio='';NAMES=[];NAMES_PATH='/data/names.json'
 LAST_MSG_BY_USER={};PENDING_MENTION={}
 client=TelegramClient(StringSession(SESSION_STRING),API_ID,API_HASH)
@@ -40,10 +36,10 @@ RAW_FONTS=[
 {'d':'⁰¹²³⁴⁵⁶⁷⁸⁹','c':'ː'},
 {'d':'₀₁₂₃₄₅₆₇₈₉','c':':'},
 {'d':'𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡','c':':'},
-{'d':'0𝟣𝟤𝟥𝟧𝟨𝟩𝟫','c':':'},
+{'d':'𝟢𝟣𝟤𝟥𝟦𝟧𝟨𝟩𝟪𝟫','c':':'},
 {'d':'𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗','c':':'},
 {'d':'𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿','c':':'},
-{'d':'①②③④⑤⑦⑧⑨','c':':'},
+{'d':'⓪①②③④⑤⑥⑦⑧⑨','c':':'},
 {'d':'0123456789','c':':'},
 {'d':'۰۱۲۳۴۵۶۷۸۹','c':':'},
 {'d':'٠١٢٣٤٥٦٧٨٩','c':':'},
@@ -129,34 +125,106 @@ async def fetch_text(url,timeout=20):
         req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
         with urllib.request.urlopen(req,timeout=timeout)as r:return r.read().decode('utf-8',errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None,_get)
-async def ask_ai(question,timeout=30):
-    if not AI_AVAILABLE:return '❌ کتابخانه AI نصب نیست! در requirements.txt خط ddgs>=9.0.0 را اضافه کن'
-    def _ask():
-        with DDGS(timeout=timeout) as ddgs:
-            r=ddgs.chat(question,model='gpt-4o-mini')
-            if isinstance(r,list):r=r[0].get('text','')if r else ''
-            return r or ''
+def _ddg_chat_sync(question,timeout=60):
+    cj=http.cookiejar.CookieJar()
+    opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    req=urllib.request.Request('https://duckduckgo.com/duckchat/v1/status',headers={'User-Agent':'Mozilla/5.0','x-vqd-accept':'1'})
+    with opener.open(req,timeout=20)as r:
+        vqd=r.headers.get('x-vqd-4')
+        if not vqd:raise Exception('no vqd token')
+    payload=json.dumps({'model':'gpt-4o-mini','messages':[{'role':'user','content':question}]}).encode()
+    req2=urllib.request.Request('https://duckduckgo.com/duckchat/v1/chat',data=payload,headers={'User-Agent':'Mozilla/5.0','Content-Type':'application/json','x-vqd-4':vqd})
+    with opener.open(req2,timeout=timeout)as r:
+        raw=r.read().decode('utf-8',errors='ignore')
+    text=''
+    for line in raw.splitlines():
+        line=line.strip()
+        if line.startswith('data: '):
+            data=line[6:]
+            if data=='[DONE]':break
+            try:
+                obj=json.loads(data)
+                text+=obj.get('message','')
+            except Exception:pass
+    return text
+async def ask_ai(question,timeout=60):
     try:
-        resp=await asyncio.get_running_loop().run_in_executor(None,_ask)
+        resp=await asyncio.get_running_loop().run_in_executor(None,_ddg_chat_sync,question,timeout)
     except Exception as e:
         return f'❌ خطای AI: {str(e)[:150]}'
     if not resp:return '❌ پاسخی دریافت نشد'
     if len(resp)>3900:resp=resp[:3900]+'\n...(بریده شد)'
     return resp
 async def get_usd_from_ai():
-    if not AI_AVAILABLE:return None
-    def _ask():
-        with DDGS(timeout=20) as ddgs:
-            r=ddgs.chat('Current US Dollar price in Iranian Toman free market today? Reply ONLY the number like 269000',model='gpt-4o-mini')
-            if isinstance(r,list):r=r[0].get('text','')if r else ''
-            return r or ''
     try:
-        txt=await asyncio.get_running_loop().run_in_executor(None,_ask)
-    except Exception:return None
+        txt=await asyncio.get_running_loop().run_in_executor(None,_ddg_chat_sync,'Current US Dollar price in Iranian Toman free market today? Reply ONLY the number like 269000',30)
+    except Exception:
+        return None
     nums=[int(x.replace(',',''))for x in re.findall(r'[\d,]{4,}',txt or '')]
     for n in nums:
         if 50000<=n<=2000000:return n
     return None
+def _fa_to_en(txt):
+    return txt.translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩','01234567890123456789'))
+def parse_price_text(txt):
+    res={'usd':None,'btc_usd':None,'gold_gram':None,'gold_oz':None}
+    txt=_fa_to_en(txt or '')
+    m=re.search(r'دلار[^0-9]{0,80}?([0-9][0-9,\.]{3,})',txt)
+    if m:
+        v=int(m.group(1).replace(',','').replace('.',''))
+        if 50000<=v<=2000000:res['usd']=v
+    m=re.search(r'(?:بیت\s?کوین|بیتکوین|BTC)[^0-9]{0,80}?([0-9][0-9,\.]{3,})',txt)
+    if m:
+        raw=float(m.group(1).replace(',',''))
+        if 1000<=raw<1000000:res['btc_usd']=raw
+        elif res['usd'] and raw>=1000000:res['btc_usd']=raw/res['usd']
+    m=re.search(r'(?:طلای\s?18|18\s?عیار|عیار\s?18)[^0-9]{0,80}?([0-9][0-9,\.]{3,})',txt)
+    if m:
+        v=int(m.group(1).replace(',','').replace('.',''))
+        if 500000<=v<=500000000:res['gold_gram']=v
+    if not res['gold_gram']:
+        m=re.search(r'(?:انس|اونس|XAU)[^0-9]{0,80}?([0-9][0-9,\.]{3,})',txt)
+        if m:
+            v=float(m.group(1).replace(',',''))
+            if 200<=v<=100000:res['gold_oz']=v
+    return res
+async def get_channel_prices():
+    res={'usd':None,'btc_usd':None,'gold_gram':None,'gold_oz':None}
+    if PRICE_BOT:
+        try:
+            ent=await client.get_entity(PRICE_BOT)
+            if PRICE_BOT_BTN:
+                clicked=False
+                for mg in await client.get_messages(ent,limit=5):
+                    if mg.buttons:
+                        for row in mg.buttons:
+                            for btn in row:
+                                if PRICE_BOT_BTN in(btn.text or''):
+                                    await btn.click();clicked=True;break
+                            if clicked:break
+                    if clicked:break
+                if not clicked:await client.send_message(ent,PRICE_BOT_CMD)
+            else:
+                await client.send_message(ent,PRICE_BOT_CMD)
+            await asyncio.sleep(5)
+            for mg in await client.get_messages(ent,limit=3):
+                r=parse_price_text(mg.text)
+                for k in res:
+                    if res[k] is None and r.get(k):res[k]=r[k]
+            print(f'[PRICE] bot {PRICE_BOT} queried',flush=True)
+        except Exception as e:
+            print(f'[PRICE] bot failed: {e}',flush=True)
+    try:
+        async for mg in client.iter_messages(PRICE_CHANNEL,limit=10):
+            r=parse_price_text(mg.text)
+            for k in res:
+                if res[k] is None and r.get(k):res[k]=r[k]
+            if res['usd'] and res['btc_usd'] and res['gold_gram']:break
+    except Exception as e:
+        print(f'[PRICE] channel failed: {e}',flush=True)
+    for k,v in res.items():
+        if v:print(f'[PRICE] got {k}={v}',flush=True)
+    return res
 async def get_usd_toman():
     try:
         d=await fetch_json('https://api.navasan.tech/latest/?api_key=free&base=usd&to=irr',timeout=10)
@@ -175,10 +243,8 @@ async def get_usd_toman():
             v_official=int(irr/10);v_free=int(v_official*1.58)
             print(f'[PRICE] usd(er-api approx)={v_free}',flush=True);return v_free,'تقریبی'
     except Exception as e:print(f'[PRICE] er-api failed: {e}',flush=True)
-    try:
-        v=await get_usd_from_ai()
-        if v:print(f'[PRICE] usd(AI fallback)={v}',flush=True);return v,'آزاد (AI)'
-    except Exception as e:print(f'[PRICE] ai failed: {e}',flush=True)
+    v=await get_usd_from_ai()
+    if v:print(f'[PRICE] usd(AI fallback)={v}',flush=True);return v,'AI'
     return None,None
 async def get_btc_usd():
     try:
@@ -211,13 +277,24 @@ def slash_fmt(n):
     if n is None:return '—'
     return f'{int(round(n)):,}'.replace(',','/')
 async def build_bio():
-    usd_toman,label=await get_usd_toman();btc_usd=await get_btc_usd();gold_oz_usd=await get_gold_oz_usd()
-    gold_gram_toman=None
-    if gold_oz_usd and usd_toman:gold_gram_toman=(gold_oz_usd/31.1035)*0.75*usd_toman
+    ch=await get_channel_prices()
+    usd_toman=ch['usd']
+    if not usd_toman:
+        usd_toman,label=await get_usd_toman()
+    btc_usd=ch['btc_usd']
+    if not btc_usd:
+        btc_usd=await get_btc_usd()
+    gold_gram=ch['gold_gram']
+    gold_oz=ch.get('gold_oz')
+    if not gold_gram:
+        if not gold_oz:
+            gold_oz=await get_gold_oz_usd()
+        if gold_oz and usd_toman:
+            gold_gram=(gold_oz/31.1035)*0.75*usd_toman
     parts=[]
     if usd_toman:parts.append(f'dollrs {slash_fmt(usd_toman)}')
     if btc_usd:parts.append(f'B {int(round(btc_usd/1000))} k')
-    if gold_gram_toman:parts.append(f'Gold {slash_fmt(gold_gram_toman)}')
+    if gold_gram:parts.append(f'Gold {slash_fmt(gold_gram)}')
     bio=' / '.join(parts)
     return '\u200e'+bio if bio else None
 async def update_bio(new_bio):
@@ -231,6 +308,7 @@ async def update_bio(new_bio):
     return False
 async def price_loop():
     print(f'[PRICE] price_loop started (every {PRICE_INTERVAL}s)',flush=True)
+    print(f'[PRICE] bot={PRICE_BOT} channel={PRICE_CHANNEL}',flush=True)
     while True:
         try:
             if PRICE_ON and MASTER_ON:
@@ -626,7 +704,7 @@ async def bot_cmd(event):
 async def bot_buttons(event):
     global MASTER_ON
     if event.data==b'bot_on':MASTER_ON=True;await event.edit('🤖 روشن ✅')
-    elif event.data==b'bot_off':MASTER_ON=False;await event.edit('🤖 خاموش ')
+    elif event.data==b'bot_off':MASTER_ON=False;await event.edit('🤖 خاموش ❌')
 @client.on(events.NewMessage(pattern=r'^/common\s+(\S+)$',chats='me'))
 async def common_cmd(event):
     global COMMON_BUSY
@@ -958,7 +1036,7 @@ async def auto_cmd(event):
         return
 @client.on(events.NewMessage(pattern=r'^/status$',chats='me'))
 async def status_cmd(event):
-    await event.edit(f'📊 v{BOT_VERSION}\nmaster={MASTER_ON} ghost={GHOST_MODE} clock={CLOCK_ON} names={len(NAMES)} fonts={len(active_fonts())} ttl={TTL_SAVE} banlog={BAN_LOG} pmlog={PMLOG_ON} watch={len(WATCH)} auto={AUTO_ON}({len(AUTOS)}) click={CLICK_ON}({len(CLICKS)}) price={PRICE_ON} ai={AI_AVAILABLE}')
+    await event.edit(f'📊 v{BOT_VERSION}\nmaster={MASTER_ON} ghost={GHOST_MODE} clock={CLOCK_ON} names={len(NAMES)} fonts={len(active_fonts())} ttl={TTL_SAVE} banlog={BAN_LOG} pmlog={PMLOG_ON} watch={len(WATCH)} auto={AUTO_ON}({len(AUTOS)}) click={CLICK_ON}({len(CLICKS)}) price={PRICE_ON} ai={AI_AVAILABLE}\n📡 bot={PRICE_BOT} channel={PRICE_CHANNEL}')
 @client.on(events.NewMessage(pattern=r'^/clock\s+(on|off)$',chats='me'))
 async def clock_cmd(event):
     global CLOCK_ON,BASE_LAST
@@ -989,10 +1067,10 @@ async def ghost(event):
     await event.edit(f'👻 روح: {"✅"if GHOST_MODE else"❌"}')
 @client.on(events.NewMessage(pattern=r'^/help$',chats='me'))
 async def help_cmd(event):
-    await event.edit('''🤖 سلف‌بات v31
+    await event.edit('''🤖 سلف‌بات v33
 🧠 هوش مصنوعی: /ask سوال | (ریپلای)+/ask
 🎯 منشن: /rp /m /mwho
-💰 قیمت: /price on|off
+💰 قیمت: /price on|off (bot+channel+API+AI)
 🕐 ساعت: /clock on|off
 📝 اسم: /name add|list|del|reset|test
 🎨 فونت: /font list|add|del|reset|test
@@ -1046,6 +1124,7 @@ async def main():
     if PRICE_ON:asyncio.create_task(price_loop())
     print(f'🚀 سلف‌بات v{BOT_VERSION} فعال شد! AI={AI_AVAILABLE}',flush=True)
     print(f'[INIT] WATCH={len(WATCH)} OWNERS={len(OWNERS)} CLICKS={len(CLICKS)} FONTS={len(active_fonts())} NAMES={len(NAMES)}',flush=True)
+    print(f'[INIT] PRICE bot={PRICE_BOT} channel={PRICE_CHANNEL}',flush=True)
     while True:
         try:
             await client.run_until_disconnected();break
