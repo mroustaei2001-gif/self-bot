@@ -19,7 +19,7 @@ PHONE_HASH=os.getenv('PHONE_HASH','');NTFY_TOPIC=os.getenv('NTFY_TOPIC','')
 PRICE_CHANNEL=os.getenv('PRICE_CHANNEL','@nerkhonlinechannel')
 PRICE_BOT=os.getenv('PRICE_BOT','@arnaeco_bot')
 PRICE_BOT_CMD=os.getenv('PRICE_BOT_CMD','/start')
-PRICE_BOT_BTN=os.getenv('PRICE_BOT_BTN','')
+PRICE_BOT_BTN=os.getenv('PRICE_BOT_BTN','به صورت کلی')
 MASTER_ON=True;GHOST_MODE=False;CLOCK_ON=False;BASE_LAST='';ME_ID=None
 TTL_SAVE=True;BAN_LOG=True;BAN_DEDUPE={};PMLOG_ON=True;PM_CACHE={}
 WATCH=set();WATCH_PATH='/data/watch.json';LAST_SEEN={};LAST_BTN=None;LAST_BTN_TEXTS=[]
