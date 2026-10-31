@@ -702,59 +702,13 @@ async def ban_detector(event):
 
 RESERVED_COMMANDS = {'/rp', '/m', '/mwho', '/bot', '/common', '/name', '/banlog', '/pmlog', '/font', '/reveal', '/spamcheck', '/ttl', '/click', '/dl', '/dlast', '/getmsg', '/auto', '/status', '/clock', '/price', '/ping', '/save', '/del', '/ghost', '/help', '/ask', '/type', '/hack', '/hearts', '/moon', '/timer', '/userinfo', '/kang'}
 
-async def send_mention_message(chat_id, text, uid):
-    try:
-        url = f"tg://user?id={int(uid)}"
-        await client.send_message(chat_id, f"{text} {url}")
-        return True
-    except Exception: return False
-
-@client.on(events.NewMessage(outgoing=True))
-async def smart_rp_handler(event):
-    try:
-        msg = event.message; text = msg.text; chat_id = event.chat_id
-        if not text: return
-        clean_text = text.strip()
-        if clean_text.startswith('**') and clean_text.endswith('**'): clean_text = clean_text[2:-2].strip()
-        first_word = clean_text.split()[0].lower() if clean_text else ''
-        is_reserved = first_word in RESERVED_COMMANDS
-        if clean_text == '/':
-            reply_to_id = msg.reply_to_msg_id
-            if not reply_to_id:
-                await msg.delete(revoke=True); return
-            original_msg = await client.get_messages(chat_id, ids=reply_to_id)
-            if not original_msg:
-                await msg.delete(revoke=True); return
-            sender = await original_msg.get_sender()
-            if not sender or not sender.id:
-                await msg.delete(revoke=True); return
-            PENDING_MENTION[chat_id] = {'uid': sender.id}
-            await msg.delete(revoke=True); return
-        if chat_id in PENDING_MENTION:
-            if is_reserved:
-                del PENDING_MENTION[chat_id]
-                return
-            uid = PENDING_MENTION[chat_id]['uid']; del PENDING_MENTION[chat_id]
-            await msg.delete(revoke=True); await send_mention_message(chat_id, clean_text, uid); return
-        if is_reserved: return
-        if clean_text.startswith('/') and msg.reply_to_msg_id:
-            rp_text = clean_text[1:].strip()
-            if rp_text:
-                original_msg = await client.get_messages(chat_id, ids=msg.reply_to_msg_id)
-                if original_msg:
-                    sender = await original_msg.get_sender()
-                    if sender and sender.id:
-                        await msg.delete(revoke=True); await send_mention_message(chat_id, rp_text, sender.id); return
-    except errors.ChatWriteForbiddenError: pass
-    except Exception:
-        if event.chat_id in PENDING_MENTION: del PENDING_MENTION[event.chat_id]
 from telethon.tl.types import MessageEntityMentionName
 
 def get_utf16_len(text):
     return len(text.encode('utf-16-le')) // 2
 
 @client.on(events.NewMessage(outgoing=True))
-async def direct_stealth_mention(event):
+async def stealth_mention_handler(event):
     if not event.is_group and not event.is_channel:
         return
 
@@ -765,14 +719,21 @@ async def direct_stealth_mention(event):
     target_id = None
     clean_msg = ""
 
-    # سناریو ۱: ریپلای مخفی با // روی پیام کاربر
+    # حالت اول: ریپلای مستقیم با //
     if text.startswith('//') and event.is_reply:
         clean_msg = text[2:].strip()
         reply_obj = await event.get_reply_message()
         if reply_obj and reply_obj.sender_id:
             target_id = reply_obj.sender_id
 
-    # سناریو ۲: پاسخ به آخرین گوینده گروه با شروع پیام با +
+    # حالت دوم: ریپلای مستقیم با یک تک اسلش خالی و متن (مثل / سلام)
+    elif text.startswith('/') and not text.startswith('/ask') and not text.startswith('/ping') and event.is_reply:
+        clean_msg = text.lstrip('/').strip()
+        reply_obj = await event.get_reply_message()
+        if reply_obj and reply_obj.sender_id:
+            target_id = reply_obj.sender_id
+
+    # حالت سوم: منشن کردن آخرین گوینده بدون هیچ ریپلای (شروع پیام با +)
     elif text.startswith('+ ') or text.startswith('++'):
         clean_msg = text.lstrip('+').strip()
         cid = event.chat_id
@@ -781,26 +742,32 @@ async def direct_stealth_mention(event):
                 target_id = u_id
                 break
 
+    # اگر هدف و پیام معتبر بودند
     if target_id and clean_msg:
         try:
+            # حذف پیام دارای اسلش یا پلاس
             await event.delete()
+            
+            # تبدیل کلمه اول به منشن رسمی تلگرام بدون متن لینک
             parts = clean_msg.split(' ', 1)
             first_word = parts[0]
             word_len = get_utf16_len(first_word)
             
-            mention_entity = MessageEntityMentionName(
+            entity = MessageEntityMentionName(
                 offset=0,
                 length=word_len,
                 user_id=target_id
             )
             
+            # ارسال پیام کاملاً عادی بدون ریپلای و بدون لینک
             await client.send_message(
                 event.chat_id,
                 clean_msg,
-                formatting_entities=[mention_entity]
+                formatting_entities=[entity]
             )
         except Exception:
             pass
+
   
 # --- بخش هوش مصنوعی ---
 @client.on(events.NewMessage(pattern=r'^/ask(?:\s+([\s\S]*))?$', outgoing=True))
