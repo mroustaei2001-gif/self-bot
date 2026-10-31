@@ -187,37 +187,53 @@ async def fetch_text(url, timeout=20):
         with urllib.request.urlopen(req, timeout=timeout) as r: return r.read().decode('utf-8', errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
-def _pollinations_sync(question, timeout=90):
-    system_prompt = "You are a knowledgeable and helpful AI assistant. Answer accurately, concisely and in Persian unless asked otherwise."
-    url = f"https://text.pollinations.ai/{urllib.parse.quote(question)}?system={urllib.parse.quote(system_prompt)}&model=openai"
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+def _blackbox_sync(question, timeout=45):
+    """موتور قدرتمند و رایگان بلک‌باکس با اطلاعات کاملاً به‌روز"""
+    url = 'https://www.blackbox.ai/api/chat'
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Content-Type': 'application/json',
+        'Origin': 'https://www.blackbox.ai',
+        'Referer': 'https://www.blackbox.ai/'
+    }
+    payload = json.dumps({
+        'messages': [{'role': 'user', 'content': question}],
+        'previewToken': None,
+        'codeModelMode': True,
+        'agentMode': {},
+        'trendingAgentMode': {},
+        'isMicMode': False
+    }).encode('utf-8')
+
+    req = urllib.request.Request(url, data=payload, headers=headers)
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        raw = r.read().decode('utf-8', errors='ignore')
+        # پاک‌سازی تگ‌های داخلی بلک‌باکس در صورت وجود
+        clean = re.sub(r'\$~~~.*?~~~\$', '', raw, flags=re.DOTALL)
+        return clean.strip()
+
+def _pollinations_sync(question, timeout=45):
+    """موتور پشتیبان پولینیشنز"""
+    encoded_q = urllib.parse.quote(question)
+    url = f"https://text.pollinations.ai/{encoded_q}?model=openai&seed={int(time.time())}"
+    req = urllib.request.Request(url, headers={
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
+    })
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read().decode('utf-8', errors='ignore')
 
-def _ddg_chat_sync(question, timeout=60):
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-    req = urllib.request.Request('https://duckduckgo.com/duckchat/v1/status', headers={'User-Agent': 'Mozilla/5.0', 'x-vqd-accept': '1'})
-    with opener.open(req, timeout=20) as r:
-        vqd = r.headers.get('x-vqd-4')
-        if not vqd: raise Exception('no vqd token')
-    payload = json.dumps({'model': 'gpt-4o-mini', 'messages': [{'role': 'user', 'content': question}]}).encode()
-    req2 = urllib.request.Request('https://duckduckgo.com/duckchat/v1/chat', data=payload, headers={'User-Agent': 'Mozilla/5.0', 'Content-Type': 'application/json', 'x-vqd-4': vqd})
-    with opener.open(req2, timeout=timeout) as r:
-        raw = r.read().decode('utf-8', errors='ignore')
-    text = ''
-    for line in raw.splitlines():
-        line = line.strip()
-        if line.startswith('data: '):
-            data = line[6:]
-            if data == '[DONE]': break
-            try:
-                obj = json.loads(data)
-                text += obj.get('message', '')
-            except Exception: pass
-    return text
+async def ask_ai(question, timeout=60):
+    # تلاش با موتور اول (Blackbox)
+    try:
+        resp = await asyncio.get_running_loop().run_in_executor(None, _blackbox_sync, question, timeout)
+        resp = (resp or '').strip()
+        if resp and not resp.startswith('{"error"'):
+            if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
+            return resp
+    except Exception as e:
+        print(f'[AI] blackbox failed: {e}', flush=True)
 
-async def ask_ai(question, timeout=90):
+    # تلاش با موتور پشتیبان (Pollinations)
     try:
         resp = await asyncio.get_running_loop().run_in_executor(None, _pollinations_sync, question, timeout)
         resp = (resp or '').strip()
@@ -225,16 +241,10 @@ async def ask_ai(question, timeout=90):
             if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
             return resp
     except Exception as e:
-        print(f'[AI] primary provider failed: {e}', flush=True)
-    try:
-        resp = await asyncio.get_running_loop().run_in_executor(None, _ddg_chat_sync, question, timeout)
-        resp = (resp or '').strip()
-        if resp:
-            if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
-            return resp
-    except Exception as e:
-        return f'❌ خطای AI: {str(e)[:150]}'
-    return '❌ پاسخی دریافت نشد'
+        print(f'[AI] pollinations failed: {e}', flush=True)
+
+    return '❌ سرورهای هوش مصنوعی موقتاً پاسخگو نیستند، لطفاً دوباره امتحان کنید.'
+
 
 async def get_usd_from_ai():
     try:
