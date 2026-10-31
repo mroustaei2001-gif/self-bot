@@ -192,11 +192,26 @@ def _gemini_sync(question, timeout=30):
     cleaned_key = (GEMINI_API_KEY or '').strip().replace('\n', '').replace('\r', '')
     if not cleaned_key:
         return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
-    
-    # استفاده از مدل پایدار و عمومی gemini-2.0-flash
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={cleaned_key}"
+
+    # دریافت خودکار لیست مدل‌های فعال روی اکانت شما از سرور گوگل
+    chosen_model = 'gemini-2.5-flash'
+    try:
+        list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={cleaned_key}"
+        req_list = urllib.request.Request(list_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req_list, timeout=10) as r:
+            data = json.loads(r.read().decode('utf-8'))
+            for m in data.get('models', []):
+                name = m.get('name', '')
+                methods = m.get('supportedGenerationMethods', [])
+                if 'generateContent' in methods and 'flash' in name.lower():
+                    chosen_model = name.replace('models/', '')
+                    break
+    except Exception:
+        pass
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{chosen_model}:generateContent?key={cleaned_key}"
     headers = {'Content-Type': 'application/json'}
-    
+
     payload = {
         "contents": [{
             "parts": [{"text": question}]
@@ -205,10 +220,10 @@ def _gemini_sync(question, timeout=30):
             "parts": [{"text": "You are a precise, up-to-date AI assistant. Always reply concisely in Persian unless requested otherwise."}]
         }
     }
-    
+
     data = json.dumps(payload).encode('utf-8')
     req = urllib.request.Request(url, data=data, headers=headers)
-    
+
     with urllib.request.urlopen(req, timeout=timeout) as response:
         res_json = json.loads(response.read().decode('utf-8'))
         candidates = res_json.get('candidates', [])
@@ -217,6 +232,7 @@ def _gemini_sync(question, timeout=30):
             if parts:
                 return parts[0].get('text', '').strip()
     return '❌ پاسخی از مدل دریافت نشد.'
+
 
 async def ask_ai(question, timeout=40):
     try:
