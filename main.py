@@ -1015,8 +1015,24 @@ async def bot_cmd(event):
     await event.edit(f'🤖 سلف‌بات: {"روشن ✅" if MASTER_ON else "خاموش ❌"}')
 
 @client.on(events.NewMessage(pattern=r'^/status$', chats='me'))
+@client.on(events.NewMessage(pattern=r'^/status$', chats='me'))
 async def status_cmd(event):
-    await event.edit(f'📊 v{BOT_VERSION}\nmaster={MASTER_ON} ghost={GHOST_MODE} clock={CLOCK_ON} ai={AI_AVAILABLE}\nwatch={len(WATCH)} auto={AUTO_ON}({len(AUTOS)}) click={CLICK_ON}({len(CLICKS)}) price={PRICE_ON}')
+    active_fonts_count = len(CUSTOM_FONTS) if CUSTOM_FONTS else len(FONTS)
+    names_count = len(NAMES) if NAMES else 0
+    auto_count = len(AUTOS)
+    click_count = len(CLICKS)
+    watch_count = len(WATCH)
+    
+    text = (
+        f"📊 v{BOT_VERSION}\n"
+        f"master={MASTER_ON} ghost={GHOST_MODE} clock={CLOCK_ON} "
+        f"names={names_count} fonts={active_fonts_count} "
+        f"ttl={TTL_SAVE} banlog={BAN_LOG} pmlog={PMLOG_ON} "
+        f"watch={watch_count} auto={AUTO_ON}({auto_count}) "
+        f"click={CLICK_ON}({click_count}) price={PRICE_ON} ai={AI_AVAILABLE}\n"
+        f"📡 bot={PRICE_BOT} channel={PRICE_CHANNEL}"
+    )
+    await event.edit(text)
 
 @client.on(events.NewMessage(pattern=r'^/clock\s+(on|off)$', chats='me'))
 async def clock_cmd(event):
