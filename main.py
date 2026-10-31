@@ -1129,6 +1129,7 @@ async def gen_mode():
 # ==================== ربات اینلاین (منوی شناور) ====================
 bot_client = None
 if BOT_TOKEN:
+    from telethon.sessions import MemorySession
     bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
 
     @bot_client.on(events.InlineQuery)
