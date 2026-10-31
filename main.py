@@ -1187,35 +1187,80 @@ if BOT_TOKEN:
             builder.article(
                 title="👤 مشخصات کاربر",
                 description="/userinfo — استخراج مشخصات و آیدی فرستنده",
-                text="/userinfo"
+# ==================== ربات اینلاین (فوق‌العاده ساده و فقط اسلش‌های لمسی) ====================
+bot_client = None
+if BOT_TOKEN:
+    from telethon.sessions import MemorySession
+    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
+
+    @bot_client.on(events.InlineQuery)
+    async def inline_menu_handler(event):
+        builder = event.builder
+        results = [
+            builder.article(
+                title="🌙 فازهای ماه",
+                description="/moon",
+                text="/moon"
             ),
             builder.article(
-                title="👻 حالت روح",
-                description="/ghost on — عدم ارسال تیک دوم و وضعیت خوانده شدن",
-                text="/ghost on"
+                title="❤️ قلب‌های رنگی",
+                description="/hearts",
+                text="/hearts"
             ),
             builder.article(
-                title="📊 وضعیت سلف‌بات",
-                description="/status — نمایش آمار وضعیت ماژول‌ها",
-                text="/status"
+                title="💀 هک نمایشی",
+                description="/hack",
+                text="/hack"
             ),
             builder.article(
-                title="🕐 ساعت زنده روی نام",
-                description="/clock on — فعال‌سازی ساعت روی اسم اکانت",
-                text="/clock on"
+                title="⏳ تایمر ۳۰ ثانیه‌ای",
+                description="/timer 30",
+                text="/timer 30"
             ),
-            builder.article(
-                title="🚨 لاگ اخراج (BanLog)",
-                description="/banlog on — ثبت گزارش اخراج‌ها در Saved Messages",
-                text="/banlog on"
-            ),
-            builder.article(
-                title="⏱️ ذخیره مدیا زمان‌دار (TTL)",
-                description="/ttl on — ذخیره عکس‌های یکبار مصرف پی‌وی",
-                text="/ttl on"
-            )
         ]
         await event.answer(results, cache_time=1)
+        
+# --- پردازشگر دستورات لمسی اینلاین ---
+@client.on(events.NewMessage(outgoing=True))
+async def inline_trigger_fallback(event):
+    if not event.via_bot_id:
+        return
+    text = (event.raw_text or '').strip()
+    
+    if text == '/moon':
+        for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
+            try:
+                await event.edit(m)
+                await asyncio.sleep(0.35)
+            except Exception:
+                break
+                
+    elif text == '/hearts':
+        for h in ["🤍", "💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
+            try:
+                await event.edit(h)
+                await asyncio.sleep(0.3)
+            except Exception:
+                break
+                
+    elif text.startswith('/timer'):
+        parts = text.split()
+        secs = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 30
+        for s in range(secs, 0, -1):
+            try:
+                await event.edit(f"⏳ زمان باقی‌مانده: **{s}** ثانیه")
+                await asyncio.sleep(1)
+            except Exception:
+                break
+        await event.edit("⏰ **زمان به پایان رسید!**")
+        
+    elif text == '/hack':
+        for s in ["💻 ورود به ترمینال...", "🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "✅ اتمام دسترسی"]:
+            try:
+                await event.edit(f"`{s}`")
+                await asyncio.sleep(0.7)
+            except Exception:
+                break
 
 # ==================== اجرای اصلی ====================
 async def main():
