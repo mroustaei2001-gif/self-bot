@@ -190,20 +190,16 @@ async def fetch_text(url, timeout=20):
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
 def _gemini_sync(question):
+def _gemini_sync(question):
     if not GEMINI_API_KEY:
         return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
     
     client_ai = genai.Client(api_key=GEMINI_API_KEY)
     
-    # تست مدل‌های رسمی و پایدار به ترتیب اولویت
-    models_to_try = [
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-latest',
-        'gemini-1.5-pro'
-    ]
+    # مدل‌های پیش‌فرض فعال روی اکانت‌های جدید
+    target_models = ['gemini-2.0-flash', 'gemini-2.0-flash-lite']
     
-    last_error = ''
-    for m in models_to_try:
+    for m in target_models:
         try:
             response = client_ai.models.generate_content(
                 model=m,
@@ -214,11 +210,27 @@ def _gemini_sync(question):
             )
             if response and response.text:
                 return response.text.strip()
-        except Exception as e:
-            last_error = str(e)
+        except Exception:
             continue
             
-    return f'❌ خطا در ارتباط: {last_error[:150]}'
+    # اگر مدل‌های فوق نبودند، دریافت اولین مدل مجاز از لیست رسمی اکانت شما
+    try:
+        available_models = [
+            m.name for m in client_ai.models.list() 
+            if 'generateContent' in getattr(m, 'supported_generation_methods', [])
+        ]
+        if available_models:
+            chosen = available_models[0].split('/')[-1]
+            response = client_ai.models.generate_content(
+                model=chosen,
+                contents=question
+            )
+            if response and response.text:
+                return response.text.strip()
+    except Exception as e:
+        return f'❌ خطا در ارتباط: {str(e)[:150]}'
+
+    return '❌ هیچ مدل فعالی روی این پروژه یافت نشد.'
 
 
 
