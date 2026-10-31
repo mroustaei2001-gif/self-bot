@@ -1127,6 +1127,7 @@ async def gen_mode():
 
 # ==================== ربات اینلاین و پردازشگر خودکار ====================
 # ==================== ربات اینلاین با قابلیت ویرایش خودکار ====================
+# ==================== ربات اینلاین ====================
 bot_client = None
 if BOT_TOKEN:
     from telethon.sessions import MemorySession
@@ -1137,25 +1138,21 @@ if BOT_TOKEN:
         builder = event.builder
         results = [
             builder.article(
-                id="anim_moon",
                 title="🌙 انیمیشن فازهای ماه",
                 description="اجرای چرخه ماه",
                 text="🌑"
             ),
             builder.article(
-                id="anim_hearts",
                 title="❤️ انیمیشن قلب‌های رنگی",
                 description="اجرای چرخه قلب‌ها",
                 text="🤍"
             ),
             builder.article(
-                id="anim_hack",
                 title="💀 هک نمایشی",
                 description="ترمینال نفوذ",
                 text="💻 `ورود به ترمینال...`"
             ),
             builder.article(
-                id="anim_timer",
                 title="⏳ تایمر ۳۰ ثانیه‌ای",
                 description="شمارش معکوس ۳۰ ثانیه",
                 text="⏳ زمان باقی‌مانده: 30 ثانیه"
@@ -1163,109 +1160,69 @@ if BOT_TOKEN:
         ]
         await event.answer(results, cache_time=1)
 
-    # رویداد رسمی کلیک روی گزینه‌های اینلاین و اجرای مستقیم انیمیشن
-    @bot_client.on(events.ChosenInlineResult)
-    async def on_chosen_inline(event):
-        r_id = event.result_id
-        
-        # اجرای انیمیشن ماه
-        if r_id == "anim_moon":
-            for m in ["🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
-                await asyncio.sleep(0.4)
-                try:
-                    await event.edit(m)
-                except Exception:
-                    break
+# پردازشگر انیمیشن روی کلاینت اصلی
+@client.on(events.NewMessage(outgoing=True))
+async def anim_trigger_handler(event):
+    msg_text = (event.raw_text or '').strip()
 
-        # اجرای انیمیشن قلب‌ها
-        elif r_id == "anim_hearts":
-            for h in ["💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
-                await asyncio.sleep(0.35)
-                try:
-                    await event.edit(h)
-                except Exception:
-                    break
-
-        # اجرای هک نمایشی
-        elif r_id == "anim_hack":
-            steps = ["🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "📥 استخراج داده‌ها...", "✅ اتمام دسترسی!"]
-            for s in steps:
-                await asyncio.sleep(0.8)
-                try:
-                    await event.edit(f"`{s}`")
-                except Exception:
-                    break
-
-        # اجرای تایمر ۳۰ ثانیه‌ای
-        elif r_id == "anim_timer":
-            for s in range(29, 0, -1):
-                await asyncio.sleep(1)
-                try:
-                    await event.edit(f"⏳ زمان باقی‌مانده: **{s}** ثانیه")
-                except Exception:
-                    break
+    if msg_text == '🌑':
+        for m in ["🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
+            await asyncio.sleep(0.4)
             try:
-                await event.edit("⏰ **زمان به پایان رسید!**")
+                await event.edit(m)
             except Exception:
-                pass
+                break
+
+    elif msg_text == '🤍':
+        for h in ["💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
+            await asyncio.sleep(0.35)
+            try:
+                await event.edit(h)
+            except Exception:
+                break
+
+    elif 'ورود به ترمینال' in msg_text:
+        steps = ["🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "📥 استخراج داده‌ها...", "✅ اتمام دسترسی!"]
+        for s in steps:
+            await asyncio.sleep(0.8)
+            try:
+                await event.edit(f"`{s}`")
+            except Exception:
+                break
+
+    elif 'زمان باقی‌مانده: 30 ثانیه' in msg_text:
+        for s in range(29, 0, -1):
+            await asyncio.sleep(1)
+            try:
+                await event.edit(f"⏳ زمان باقی‌مانده: **{s}** ثانیه")
+            except Exception:
+                break
+        try:
+            await event.edit("⏰ **زمان به پایان رسید!**")
+        except Exception:
+            pass
 
 
-
-# ==================== اجرای اصلی ====================
+# ==================== تابع اصلی و استارت کلاینت‌ها ====================
 async def main():
-    global BASE_LAST, ME_ID, ME_USER
-
-    if WIPE:
-        for p in (SESSION_PATH + '.session',):
-            try:
-                os.remove(p)
-            except Exception:
-                pass
-
-    _original_ack = client.send_read_acknowledge
-    async def _ghost_ack(*args, **kwargs):
-        if GHOST_MODE:
-            return None
-        return await _original_ack(*args, **kwargs)
-    client.send_read_acknowledge = _ghost_ack
-
-    if GEN:
-        await gen_mode()
-        return
-
-    try:
-        await client.connect()
-        if not await client.is_user_authorized():
-            print('[FATAL] سشن کاربری معتبر نیست.')
-            return
-    except errors.AuthKeyDuplicatedError:
-        print('[FATAL] AuthKeyDuplicatedError')
-        return
-
-    load_autos()
-    load_clicks()
-    load_owners()
+    print("🚀 در حال اتصال سلف‌بات...")
+    await client.start()
     me = await client.get_me()
-    ME_ID = me.id
-    ME_USER = me.username or ""
-    BASE_LAST = safe_name_part(me.last_name or "")
-    await normalize_stored()
-
-    asyncio.create_task(clock_loop())
-    asyncio.create_task(auto_loop())
-    asyncio.create_task(probe_loop())
+    print(f"✅ سلف‌بات متصل شد: {me.first_name}")
 
     if bot_client:
-        try:
-            await bot_client.connect()
-            if not await bot_client.is_user_authorized():
-                await bot_client.sign_in(bot_token=BOT_TOKEN)
-            print("🤖 ربات اینلاین با موفقیت راه‌اندازی شد.", flush=True)
-        except Exception as e:
-            print(f"⚠️ اخطار در اجرای ربات اینلاین: {e}", flush=True)
+        print("🤖 در حال اتصال ربات اینلاین...")
+        await bot_client.start(bot_token=BOT_TOKEN)
+        print("✅ ربات اینلاین فعال شد.")
 
-    print(f"🚀 سلف‌بات v{BOT_VERSION} آنلاین شد: {me.first_name} (@{ME_USER})", flush=True)
-    await client.run_until_disconnected()
+    print("⚡ سلف‌بات در حال اجراست...")
+    
+    tasks = [client.run_until_disconnected()]
+    if bot_client:
+        tasks.append(bot_client.run_until_disconnected())
+        
+    await asyncio.gather(*tasks)
 
 if __name__ == '__main__':
     asyncio.run(main())
+
