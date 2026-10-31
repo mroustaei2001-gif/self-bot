@@ -716,56 +716,63 @@ async def stealth_mention_handler(event):
     if not text:
         return
 
-    target_id = None
+    target_user = None
     clean_msg = ""
 
-    # حالت اول: ریپلای مخفی با //
+    # ۱. استفاده از // روی ریپلای
     if text.startswith('//') and event.is_reply:
         clean_msg = text[2:].strip()
         reply_obj = await event.get_reply_message()
         if reply_obj and reply_obj.sender_id:
-            target_id = reply_obj.sender_id
+            try:
+                target_user = await event.client.get_entity(reply_obj.sender_id)
+            except Exception:
+                pass
 
-    # حالت دوم: ریپلای مخفی با یک اسلش /
+    # ۲. استفاده از / روی ریپلای
     elif text.startswith('/') and not text.startswith('/ask') and not text.startswith('/ping') and event.is_reply:
         clean_msg = text.lstrip('/').strip()
         reply_obj = await event.get_reply_message()
         if reply_obj and reply_obj.sender_id:
-            target_id = reply_obj.sender_id
+            try:
+                target_user = await event.client.get_entity(reply_obj.sender_id)
+            except Exception:
+                pass
 
-    # حالت سوم: منشن کردن آخرین گوینده با علامت +
+    # ۳. استفاده از + برای آخرین فرد بدون ریپلای
     elif text.startswith('+ ') or text.startswith('++'):
         clean_msg = text.lstrip('+').strip()
         cid = event.chat_id
         for (c_id, u_id), msg in reversed(list(LAST_MSG_BY_USER.items())):
             if c_id == cid and u_id != ME_ID:
-                target_id = u_id
-                break
+                try:
+                    target_user = await event.client.get_entity(u_id)
+                    break
+                except Exception:
+                    continue
 
-    if target_id and clean_msg:
+    if target_user and clean_msg:
         try:
-            # دریافت شناسه معتبر سرور تلگرام برای کاربر
-            input_user = await event.client.get_input_entity(target_id)
-            
-            # حذف پیام دارای علامت
+            # دریافت ورودی استاندارد کاربر برای پروتکل تلگرام
+            input_user = await event.client.get_input_entity(target_user)
             await event.delete()
 
-            # محاسبه دقیق طول کلمه اول به فرمت UTF-16
-            parts = clean_msg.split(' ', 1)
-            first_word = parts[0]
-            word_len = get_utf16_len(first_word)
+            # تلگرام تنها زمانی منشن بدون ریپلای را قبول می‌کند که نام شخص در متن باشد
+            user_name = target_user.first_name or "کاربر"
+            final_text = f"{user_name}: {clean_msg}"
+            
+            # طول نام به فرمت UTF-16
+            name_len = get_utf16_len(user_name)
 
-            # ساخت موجودیت رسمی ارسال منشن در تلثون
             entity = InputMessageEntityMentionName(
                 offset=0,
-                length=word_len,
+                length=name_len,
                 user_id=input_user
             )
 
-            # ارسال پیام بدون ریپلای همراه با منشن معتبر تلگرام
             await event.client.send_message(
                 event.chat_id,
-                clean_msg,
+                final_text,
                 formatting_entities=[entity]
             )
         except Exception:
