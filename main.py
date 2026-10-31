@@ -215,41 +215,65 @@ def _gemini_sync(question, timeout=30):
 
     web_context = _web_search(question)
     system_prompt = (
-        "You are an up-to-date, highly accurate AI assistant. "
-        "Use the provided recent web search results to answer current events, rosters, and news accurately. "
-        "Always reply concisely in Persian."
+        "شما یک دستیار هوش مصنوعی دقیق و بدون حاشیه هستید. "
+        "فقط و فقط به زبان فارسی سلیس و روان بنویسید. "
+        "اکیداً از نوشتن عبارات انگلیسی، تصحیح اشتباهات تایپی، فرآیند فکر کردن و حروف ناآشنا خودداری کنید. "
+        "مستقیماً پاسخ نهایی را به کاربر ارائه دهید."
     )
     if web_context:
-        system_prompt += f"\n\nRecent Web Search Information:\n{web_context}"
+        system_prompt += f"\n\nاطلاعات جستجوی وب برای استناد:\n{web_context}"
 
-    active_free_models = []
-    try:
-        req_models = urllib.request.Request(
-            "https://openrouter.ai/api/v1/models",
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        with urllib.request.urlopen(req_models, timeout=10) as r:
-            m_data = json.loads(r.read().decode('utf-8'))
-            for item in m_data.get('data', []):
-                mid = item.get('id', '')
-                pricing = item.get('pricing', {})
-                if ':free' in mid or (pricing.get('prompt') == '0' and pricing.get('completion') == '0'):
-                    active_free_models.append(mid)
-    except Exception:
-        pass
-
-    fallback_models = [
-        "google/gemma-2-9b-it:free",
-        "meta-llama/llama-3.2-3b-instruct:free",
-        "mistralai/mistral-7b-instruct:free",
-        "qwen/qwen-2.5-72b-instruct:free"
+    # مدل‌های پایدار با پردازش عالی خط فارسی
+    reliable_models = [
+        "qwen/qwen-2.5-72b-instruct:free",
+        "deepseek/deepseek-chat:free",
+        "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-3.3-70b-instruct:free"
     ]
-    models_to_test = active_free_models[:5] if active_free_models else fallback_models
 
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         'Authorization': f'Bearer {cleaned_key}',
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://railway.app',
+        'X-Title': 'Telegram SelfBot'
+    }
+
+    last_error = ""
+    for model_name in reliable_models:
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            "temperature": 0.3,
+            "max_tokens": 1000,
+            "frequency_penalty": 0.3,
+            "presence_penalty": 0.3
+        }
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res_json = json.loads(response.read().decode('utf-8'))
+                choices = res_json.get('choices', [])
+                if choices:
+                    msg = choices[0].get('message', {}).get('content', '')
+                    if msg:
+                        # فیلتر پاکسازی نهایی جهت جلوگیری از خروج خطاهای احتمالی
+                        cleaned = re.sub(r'(?i)(Let me write properly|Stop\.|Clean Persian|Final answer|I need to).*', '', msg, flags=re.DOTALL)
+                        return (cleaned if cleaned.strip() else msg).strip()
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8', errors='ignore')
+            last_error = f"{e.code}: {err_body[:100]}"
+            continue
+        except Exception as e:
+            last_error = str(e)[:100]
+            continue
+
+    return f'❌ خطا در ارتباط: {last_error}'
+
         'HTTP-Referer': 'https://railway.app',
         'X-Title': 'Telegram SelfBot'
     }
