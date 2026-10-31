@@ -28,6 +28,7 @@ SESSION_STRING = os.getenv('SESSION_STRING', '')
 PHONE_HASH = os.getenv('PHONE_HASH', '')
 NTFY_TOPIC = os.getenv('NTFY_TOPIC', '')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
+BOT_TOKEN = os.getenv('BOT_TOKEN', '9281074111:AAECnfbvDKiOv8CtLHuFJ_1Gl5mvR10eXTA')
 
 PRICE_CHANNEL = os.getenv('PRICE_CHANNEL', '@nerkhonlinechannel')
 PRICE_BOT = os.getenv('PRICE_BOT', '@arnaeco_bot')
@@ -1124,6 +1125,58 @@ async def gen_mode():
     print('[GEN] SESSION_STRING:', client.session.save(), flush=True)
     await client.disconnect()
 
+# --- منوی شناور اینلاین (دکمه‌های آماده) ---
+bot_client = None
+if BOT_TOKEN and BOT_TOKEN != 'توکن_ربات_را_اینجا_قرار_دهید':
+    bot_client = TelegramClient('inline_bot_session', API_ID, API_HASH)
+
+    @bot_client.on(events.InlineQuery)
+    async def inline_menu_handler(event):
+        builder = event.builder
+        results = [
+            builder.article(
+                title="🌙 انیمیشن فازهای ماه",
+                description="/moon — اجرای چرخه کامل و زیبای ماه",
+                text="/moon"
+            ),
+            builder.article(
+                title="❤️ انیمیشن قلب‌ها",
+                description="/hearts — بارش رنگارنگ ایموجی قلب",
+                text="/hearts"
+            ),
+            builder.article(
+                title="💀 هک نمایشی",
+                description="/hack — شبیه‌ساز ترمینال نفوذ و هک",
+                text="/hack"
+            ),
+            builder.article(
+                title="⏳ تایمر ۳۰ ثانیه‌ای",
+                description="/timer 30 — شمارش معکوس زنده در قالب ادیت",
+                text="/timer 30"
+            ),
+            builder.article(
+                title="🎨 استیکرساز سریع",
+                description="/kang — تبدیل ریپلای عکس به پک استیکر",
+                text="/kang 🤔"
+            ),
+            builder.article(
+                title="👤 مشخصات کاربر",
+                description="/userinfo — استخراج آیدی و دیتاسنتر فرستنده",
+                text="/userinfo"
+            ),
+            builder.article(
+                title="📊 وضعیت سلف‌بات",
+                description="/status — نمایش ماژول‌ها و شمارنده‌ها",
+                text="/status"
+            ),
+            builder.article(
+                title="👻 حالت روح",
+                description="/ghost on — عدم ارسال تیک دوم سین پیام",
+                text="/ghost on"
+            ),
+        ]
+        await event.answer(results, cache_time=1)
+
 async def main():
     global BASE_LAST, ME_ID, ME_USER
     if WIPE:
@@ -1154,7 +1207,10 @@ async def main():
     asyncio.create_task(auto_loop())
     asyncio.create_task(probe_loop())
     if PRICE_ON: asyncio.create_task(price_loop())
-    
+
+        if bot_client:
+        await bot_client.start(bot_token=BOT_TOKEN)
+
     print(f'🚀 سلف‌بات {BOT_VERSION} آنلاین شد!', flush=True)
     while True:
         try:
