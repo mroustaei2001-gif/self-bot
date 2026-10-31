@@ -640,14 +640,18 @@ async def smart_rp_handler(event):
         if event.chat_id in PENDING_MENTION:del PENDING_MENTION[event.chat_id]
 @client.on(events.NewMessage(pattern=r'^/ask(?:\s+([\s\S]*))?$',outgoing=True))
 async def ask_cmd(event):
+    print(f'[ASK] fired in chat={event.chat_id} text={event.text[:30] if event.text else None}',flush=True)
     question=(event.pattern_match.group(1)or'').strip()
     rmsg=await event.get_reply_message()
     replied_only=False
     if not question and rmsg:
         question=(rmsg.text or'').strip();replied_only=True
     if not question:
-        try:await event.edit('❌ سوالی ننوشتی\nمثال: /ask پایتخت فرانسه کجاست؟')
-        except Exception:pass
+        msg='❌ سوالی ننوشتی\nمثال: /ask پایتخت فرانسه کجاست؟'
+        try:await event.edit(msg)
+        except Exception:
+            try:await client.send_message(event.chat_id,msg,reply_to=event.id)
+            except Exception:pass
         return
     cid=event.chat_id
     if cid in AI_LOCK:
@@ -660,9 +664,14 @@ async def ask_cmd(event):
         if is_private:
             await event.edit(f'🤖 در حال پردازش...\n📝 {question[:80]}')
         else:
-            try:await event.delete()
-            except Exception:pass
+            try:
+                await event.delete()
+                print(f'[ASK] deleted command msg',flush=True)
+            except Exception as e:
+                print(f'[ASK] delete failed: {e}',flush=True)
+            print(f'[ASK] calling AI with: {question[:80]}',flush=True)
         resp=await ask_ai(question)
+        print(f'[ASK] AI replied, len={len(resp or "")}',flush=True)
         if is_private:
             if replied_only:
                 await event.delete()
@@ -674,19 +683,38 @@ async def ask_cmd(event):
             full=f'🤖 پاسخ AI:\n\n{resp}'
             chunks=[full[i:i+3500]for i in range(0,len(full),3500)]
             reply_id=rmsg.id if rmsg else None
+            sent_ok=False
             for i,ch in enumerate(chunks):
                 try:
                     await client.send_message(cid,ch,reply_to=reply_id,link_preview=False)
+                    print(f'[ASK] chunk {i+1}/{len(chunks)} sent OK',flush=True)
+                    sent_ok=True
                     reply_id=None
                     if i<len(chunks)-1:await asyncio.sleep(1.5)
                 except errors.FloodWaitError as e:
+                    print(f'[ASK] FloodWait {e.seconds}s',flush=True)
                     await asyncio.sleep(e.seconds+1)
-                    try:await client.send_message(cid,ch,reply_to=reply_id,link_preview=False)
-                    except Exception:pass
+                    try:
+                        await client.send_message(cid,ch,reply_to=reply_id,link_preview=False)
+                        sent_ok=True
+                    except Exception as e2:
+                        print(f'[ASK] flood retry failed: {e2}',flush=True)
                     reply_id=None
-    except errors.ChatWriteForbiddenError:
-        pass
+                except Exception as e:
+                    print(f'[ASK] send failed: {type(e).__name__}: {e}',flush=True)
+                    try:
+                        await client.send_message('me',f'⚠️ جواب در چت {cid} ارسال نشد:\n{type(e).__name__}: {e}\n\nسوال: {question[:100]}\n\nپاسخ:\n{resp[:500]}')
+                    except Exception:pass
+                    break
+            if not sent_ok:
+                try:
+                    await client.send_message(cid,f'🤖 پاسخ AI:\n\n{resp[:3500]}',link_preview=False)
+                except Exception as e:
+                    print(f'[ASK] fallback failed: {e}',flush=True)
+    except errors.ChatWriteForbiddenError as e:
+        print(f'[ASK] ChatWriteForbidden in {cid}',flush=True)
     except Exception as e:
+        print(f'[ASK] error: {type(e).__name__}: {e}',flush=True)
         if is_private:
             try:await event.edit(f'❌ {str(e)[:200]}')
             except Exception:pass
