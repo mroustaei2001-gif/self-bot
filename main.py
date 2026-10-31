@@ -8,7 +8,7 @@ from telethon.tl.functions.channels import GetParticipantsRequest,GetParticipant
 from telethon.tl.functions.messages import GetFullChatRequest
 from telethon.tl.types import ChannelParticipantsAdmins,ChannelParticipantCreator,ChatParticipantCreator
 AI_AVAILABLE=True
-BOT_VERSION='34-FixAll'
+BOT_VERSION='36-HandlerFix'
 API_ID=int(os.getenv('API_ID','0'));API_HASH=os.getenv('API_HASH','')
 GEN=os.getenv('GEN','0')=='1';WIPE=os.getenv('WIPE','0')=='1'
 RESET_NAMES=os.getenv('RESET_NAMES','0')=='1'
@@ -614,27 +614,35 @@ async def smart_rp_handler(event):
         if not text:return
         clean_text=text.strip()
         if clean_text.startswith('**')and clean_text.endswith('**'):clean_text=clean_text[2:-2].strip()
+        first_word=clean_text.split()[0].lower()if clean_text else''
+        is_reserved=first_word in RESERVED_COMMANDS
         if clean_text=='/':
             reply_to_id=msg.reply_to_msg_id
-            if not reply_to_id:await msg.delete(revoke=True);return
+            if not reply_to_id:
+                await msg.delete(revoke=True);return
             original_msg=await client.get_messages(chat_id,ids=reply_to_id)
-            if not original_msg:await msg.delete(revoke=True);return
+            if not original_msg:
+                await msg.delete(revoke=True);return
             sender=await original_msg.get_sender()
-            if not sender or not sender.id:await msg.delete(revoke=True);return
+            if not sender or not sender.id:
+                await msg.delete(revoke=True);return
             PENDING_MENTION[chat_id]={'uid':sender.id}
             await msg.delete(revoke=True);return
         if chat_id in PENDING_MENTION:
+            if is_reserved:
+                del PENDING_MENTION[chat_id]
+                return
             uid=PENDING_MENTION[chat_id]['uid'];del PENDING_MENTION[chat_id]
             await msg.delete(revoke=True);await send_mention_message(chat_id,clean_text,uid);return
-        first_word=clean_text.split()[0].lower()if clean_text else''
-        if first_word in RESERVED_COMMANDS:return
+        if is_reserved:return
         if clean_text.startswith('/')and msg.reply_to_msg_id:
             rp_text=clean_text[1:].strip()
             if rp_text:
                 original_msg=await client.get_messages(chat_id,ids=msg.reply_to_msg_id)
                 if original_msg:
                     sender=await original_msg.get_sender()
-                    if sender and sender.id:await msg.delete(revoke=True);await send_mention_message(chat_id,rp_text,sender.id);return
+                    if sender and sender.id:
+                        await msg.delete(revoke=True);await send_mention_message(chat_id,rp_text,sender.id);return
     except errors.ChatWriteForbiddenError:pass
     except Exception:
         if event.chat_id in PENDING_MENTION:del PENDING_MENTION[event.chat_id]
