@@ -1231,6 +1231,50 @@ async def inline_trigger_fallback(event):
         for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
             try:
                 await event.edit(m)
+# ==================== ربات اینلاین (دستورات تک‌لمسی) ====================
+bot_client = None
+if BOT_TOKEN:
+    from telethon.sessions import MemorySession
+    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
+
+    @bot_client.on(events.InlineQuery)
+    async def inline_menu_handler(event):
+        builder = event.builder
+        results = [
+            builder.article(
+                title="🌙 انیمیشن فازهای ماه",
+                description="اجرای چرخه کامل ماه",
+                text="/moon"
+            ),
+            builder.article(
+                title="❤️ انیمیشن قلب‌های رنگی",
+                description="اجرای چرخه رنگی قلب‌ها",
+                text="/hearts"
+            ),
+            builder.article(
+                title="💀 هک نمایشی",
+                description="ترمینال نفوذ نمایشی",
+                text="/hack"
+            ),
+            builder.article(
+                title="⏳ شمارش معکوس ۳۰ ثانیه‌ای",
+                description="شروع ثانیه‌شمار زنده بدون نیاز به تایپ دستی",
+                text="/timer 30"
+            )
+        ]
+        await event.answer(results, cache_time=1)
+
+# --- پردازشگر اجرای خودکار دستورات ارسالی از اینلاین ---
+@client.on(events.NewMessage(outgoing=True))
+async def inline_trigger_fallback(event):
+    if not event.via_bot_id:
+        return
+    text = (event.raw_text or '').strip()
+    
+    if text == '/moon':
+        for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
+            try:
+                await event.edit(m)
                 await asyncio.sleep(0.35)
             except Exception:
                 break
@@ -1261,6 +1305,7 @@ async def inline_trigger_fallback(event):
                 await asyncio.sleep(0.7)
             except Exception:
                 break
+
 
 # ==================== اجرای اصلی ====================
 async def main():
