@@ -702,7 +702,7 @@ async def ban_detector(event):
 
 RESERVED_COMMANDS = {'/rp', '/m', '/mwho', '/bot', '/common', '/name', '/banlog', '/pmlog', '/font', '/reveal', '/spamcheck', '/ttl', '/click', '/dl', '/dlast', '/getmsg', '/auto', '/status', '/clock', '/price', '/ping', '/save', '/del', '/ghost', '/help', '/ask', '/type', '/hack', '/hearts', '/moon', '/timer', '/userinfo', '/kang'}
 
-from telethon.tl.types import MessageEntityMentionName
+from telethon.tl.types import InputMessageEntityMentionName
 
 def get_utf16_len(text):
     return len(text.encode('utf-16-le')) // 2
@@ -719,21 +719,21 @@ async def stealth_mention_handler(event):
     target_id = None
     clean_msg = ""
 
-    # حالت اول: ریپلای مستقیم با //
+    # حالت اول: ریپلای مخفی با //
     if text.startswith('//') and event.is_reply:
         clean_msg = text[2:].strip()
         reply_obj = await event.get_reply_message()
         if reply_obj and reply_obj.sender_id:
             target_id = reply_obj.sender_id
 
-    # حالت دوم: ریپلای مستقیم با یک تک اسلش خالی و متن (مثل / سلام)
+    # حالت دوم: ریپلای مخفی با یک اسلش /
     elif text.startswith('/') and not text.startswith('/ask') and not text.startswith('/ping') and event.is_reply:
         clean_msg = text.lstrip('/').strip()
         reply_obj = await event.get_reply_message()
         if reply_obj and reply_obj.sender_id:
             target_id = reply_obj.sender_id
 
-    # حالت سوم: منشن کردن آخرین گوینده بدون هیچ ریپلای (شروع پیام با +)
+    # حالت سوم: منشن کردن آخرین گوینده با علامت +
     elif text.startswith('+ ') or text.startswith('++'):
         clean_msg = text.lstrip('+').strip()
         cid = event.chat_id
@@ -742,31 +742,35 @@ async def stealth_mention_handler(event):
                 target_id = u_id
                 break
 
-    # اگر هدف و پیام معتبر بودند
     if target_id and clean_msg:
         try:
-            # حذف پیام دارای اسلش یا پلاس
-            await event.delete()
+            # دریافت شناسه معتبر سرور تلگرام برای کاربر
+            input_user = await event.client.get_input_entity(target_id)
             
-            # تبدیل کلمه اول به منشن رسمی تلگرام بدون متن لینک
+            # حذف پیام دارای علامت
+            await event.delete()
+
+            # محاسبه دقیق طول کلمه اول به فرمت UTF-16
             parts = clean_msg.split(' ', 1)
             first_word = parts[0]
             word_len = get_utf16_len(first_word)
-            
-            entity = MessageEntityMentionName(
+
+            # ساخت موجودیت رسمی ارسال منشن در تلثون
+            entity = InputMessageEntityMentionName(
                 offset=0,
                 length=word_len,
-                user_id=target_id
+                user_id=input_user
             )
-            
-            # ارسال پیام کاملاً عادی بدون ریپلای و بدون لینک
-            await client.send_message(
+
+            # ارسال پیام بدون ریپلای همراه با منشن معتبر تلگرام
+            await event.client.send_message(
                 event.chat_id,
                 clean_msg,
                 formatting_entities=[entity]
             )
         except Exception:
             pass
+
 
   
 # --- بخش هوش مصنوعی ---
