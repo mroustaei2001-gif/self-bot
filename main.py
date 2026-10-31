@@ -193,44 +193,46 @@ def _gemini_sync(question, timeout=30):
     if not cleaned_key:
         return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
 
-    # دریافت خودکار لیست مدل‌های فعال روی اکانت شما از سرور گوگل
-    chosen_model = 'gemini-2.5-flash'
-    try:
-        list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={cleaned_key}"
-        req_list = urllib.request.Request(list_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req_list, timeout=10) as r:
-            data = json.loads(r.read().decode('utf-8'))
-            for m in data.get('models', []):
-                name = m.get('name', '')
-                methods = m.get('supportedGenerationMethods', [])
-                if 'generateContent' in methods and 'flash' in name.lower():
-                    chosen_model = name.replace('models/', '')
-                    break
-    except Exception:
-        pass
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{chosen_model}:generateContent?key={cleaned_key}"
-    headers = {'Content-Type': 'application/json'}
-
-    payload = {
-        "contents": [{
-            "parts": [{"text": question}]
-        }],
-        "systemInstruction": {
-            "parts": [{"text": "You are a precise, up-to-date AI assistant. Always reply concisely in Persian unless requested otherwise."}]
+    def _call(model_name):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cleaned_key}"
+        headers = {'Content-Type': 'application/json'}
+        payload = {
+            "contents": [{"parts": [{"text": question}]}],
+            "systemInstruction": {"parts": [{"text": "You are a precise, up-to-date AI assistant. Always reply concisely in Persian."}]}
         }
-    }
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as response:
+            res_json = json.loads(response.read().decode('utf-8'))
+            candidates = res_json.get('candidates', [])
+            if candidates:
+                parts = candidates[0].get('content', {}).get('parts', [])
+                if parts:
+                    return parts[0].get('text', '').strip()
+        return None
 
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers=headers)
+    # ابتدا تلاش با نام مدل‌های متداول
+    current_model = 'gemini-1.5-flash-latest'
+    try:
+        ans = _call(current_model)
+        if ans: return ans
+    except urllib.error.HTTPError as e:
+        err_text = e.read().decode('utf-8', errors='ignore')
+        # اگر گوگل نام مدل جایگزین را در پیام پیشنهاد داده بود، آن را استخراج می‌کنیم
+        m = re.search(r'models/([a-zA-Z0-9\.\-_]+)', err_text)
+        if m:
+            suggested = m.group(1)
+            # اگر مدلی غیر از مدل فعلی پیشنهاد شده بود با آن صدا می‌زنیم
+            if suggested != current_model:
+                try:
+                    ans2 = _call(suggested)
+                    if ans2: return ans2
+                except Exception:
+                    pass
+        return f"❌ خطای مدل: {err_text[:150]}"
+    except Exception as e:
+        return f"❌ خطا در ارتباط: {str(e)[:150]}"
 
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        res_json = json.loads(response.read().decode('utf-8'))
-        candidates = res_json.get('candidates', [])
-        if candidates:
-            parts = candidates[0].get('content', {}).get('parts', [])
-            if parts:
-                return parts[0].get('text', '').strip()
     return '❌ پاسخی از مدل دریافت نشد.'
 
 
