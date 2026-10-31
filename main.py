@@ -189,6 +189,7 @@ async def fetch_text(url, timeout=20):
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
 def _gemini_sync(question, timeout=30):
+def _gemini_sync(question, timeout=30):
     cleaned_key = (GEMINI_API_KEY or '').strip().replace('\n', '').replace('\r', '')
     if not cleaned_key:
         return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
@@ -196,31 +197,50 @@ def _gemini_sync(question, timeout=30):
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         'Authorization': f'Bearer {cleaned_key}',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://railway.app',
+        'X-Title': 'Telegram SelfBot'
     }
 
-    payload = {
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
-        "messages": [
-            {
-                "role": "system",
-                "content": "You are a helpful and concise AI assistant. Always reply concisely in Persian."
-            },
-            {"role": "user", "content": question}
-        ]
-    }
+    # لیست مدل‌های کاملاً رایگان و فعال OpenRouter
+    free_models = [
+        "google/gemini-2.0-flash-lite-preview-02-05:free",
+        "google/gemini-2.0-flash-exp:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "deepseek/deepseek-r1:free"
+    ]
 
-    data = json.dumps(payload).encode('utf-8')
-    req = urllib.request.Request(url, data=data, headers=headers)
+    last_error = ""
+    for model_name in free_models:
+        payload = {
+            "model": model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a helpful and concise AI assistant. Always reply concisely in Persian."
+                },
+                {"role": "user", "content": question}
+            ]
+        }
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res_json = json.loads(response.read().decode('utf-8'))
+                choices = res_json.get('choices', [])
+                if choices:
+                    msg = choices[0].get('message', {}).get('content', '')
+                    if msg:
+                        return msg.strip()
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8', errors='ignore')
+            last_error = f"{e.code}: {err_body[:100]}"
+            continue
+        except Exception as e:
+            last_error = str(e)[:100]
+            continue
 
-    with urllib.request.urlopen(req, timeout=timeout) as response:
-        res_json = json.loads(response.read().decode('utf-8'))
-        choices = res_json.get('choices', [])
-        if choices:
-            msg = choices[0].get('message', {}).get('content', '')
-            if msg:
-                return msg.strip()
-    return '❌ پاسخی دریافت نشد.'
+    return f'❌ خطا در مدل‌های رایگان: {last_error}'
 
 
 async def ask_ai(question, timeout=40):
