@@ -205,13 +205,11 @@ def _gemini_sync(question, timeout=30):
             for item in m_data.get('data', []):
                 mid = item.get('id', '')
                 pricing = item.get('pricing', {})
-                # مدل‌هایی که هزینه ورودی و خروجی آن‌ها صفر است
                 if ':free' in mid or (pricing.get('prompt') == '0' and pricing.get('completion') == '0'):
                     active_free_models.append(mid)
     except Exception:
         pass
 
-    # مدل‌های پشتیبان در صورت عدم دریافت لیست
     fallback_models = [
         "google/gemma-2-9b-it:free",
         "meta-llama/llama-3.2-3b-instruct:free",
@@ -235,7 +233,7 @@ def _gemini_sync(question, timeout=30):
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful AI assistant. Always reply concisely in Persian."
+                    "content": "You are a precise AI assistant. If asked about sports rosters, current events, or active roles, clearly mention the reference period and state if information might have changed recently. Always reply concisely in Persian."
                 },
                 {"role": "user", "content": question}
             ]
