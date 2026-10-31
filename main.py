@@ -1160,12 +1160,16 @@ if BOT_TOKEN:
         await event.answer(results, cache_time=1)
 
 # --- پردازشگر اجرای خودکار دستورات لمسی ---
-@client.on(events.NewMessage(outgoing=True))
+# --- پردازشگر مطمئن و سراسری دستورات اینلاین ---
+@client.on(events.NewMessage)
 async def inline_trigger_fallback(event):
-    if not event.via_bot_id:
+    # بررسی ارسال از طرف خود اکانت
+    if not (event.out or event.sender_id == (await client.get_me()).id):
         return
-    text = (event.raw_text or '').strip()
+        
+    text = (event.raw_text or event.message.message or '').strip()
     
+    # اجرای ماه
     if text == '/moon':
         for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
             try:
@@ -1174,6 +1178,7 @@ async def inline_trigger_fallback(event):
             except Exception:
                 break
                 
+    # اجرای قلب‌ها
     elif text == '/hearts':
         for h in ["🤍", "💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
             try:
@@ -1182,6 +1187,16 @@ async def inline_trigger_fallback(event):
             except Exception:
                 break
                 
+    # اجرای هک
+    elif text == '/hack':
+        for s in ["💻 ورود به ترمینال...", "🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "✅ اتمام دسترسی"]:
+            try:
+                await event.edit(f"`{s}`")
+                await asyncio.sleep(0.7)
+            except Exception:
+                break
+
+    # اجرای تایمر
     elif text.startswith('/timer'):
         parts = text.split()
         secs = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 30
@@ -1192,6 +1207,7 @@ async def inline_trigger_fallback(event):
             except Exception:
                 break
         await event.edit("⏰ **زمان به پایان رسید!**")
+
         
     elif text == '/hack':
         for s in ["💻 ورود به ترمینال...", "🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "✅ اتمام دسترسی"]:
