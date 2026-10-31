@@ -638,7 +638,7 @@ async def smart_rp_handler(event):
     except errors.ChatWriteForbiddenError:pass
     except Exception:
         if event.chat_id in PENDING_MENTION:del PENDING_MENTION[event.chat_id]
-@client.on(events.NewMessage(pattern=r'^/ask(?:\s+([\s\S]*))?$',chats='me'))
+@client.on(events.NewMessage(pattern=r'^/ask(?:\s+([\s\S]*))?$',outgoing=True))
 async def ask_cmd(event):
     question=(event.pattern_match.group(1)or'').strip()
     rmsg=await event.get_reply_message()
@@ -646,22 +646,50 @@ async def ask_cmd(event):
     if not question and rmsg:
         question=(rmsg.text or'').strip();replied_only=True
     if not question:
-        await event.edit('❌ سوالی ننوشتی\nمثال: /ask پایتخت فرانسه کجاست؟');return
+        try:await event.edit('❌ سوالی ننوشتی\nمثال: /ask پایتخت فرانسه کجاست؟')
+        except Exception:pass
+        return
     cid=event.chat_id
     if cid in AI_LOCK:
-        await event.edit('⏳ سوال دیگری در حال پردازش است...');return
-    AI_LOCK[cid]=True
-    try:
-        await event.edit(f'🤖 در حال پردازش...\n📝 {question[:80]}')
-        resp=await ask_ai(question)
-        if replied_only:
-            await event.delete()
-            await client.send_message(cid,f'🤖 پاسخ AI:\n\n{resp}',reply_to=rmsg.id)
-        else:
-            await event.edit(f'🤖 پاسخ AI:\n\n{resp}')
-    except Exception as e:
-        try:await event.edit(f'❌ {str(e)[:200]}')
+        try:await event.edit('⏳ سوال دیگری در حال پردازش است...')
         except Exception:pass
+        return
+    AI_LOCK[cid]=True
+    is_private=(cid==ME_ID)
+    try:
+        if is_private:
+            await event.edit(f'🤖 در حال پردازش...\n📝 {question[:80]}')
+        else:
+            try:await event.delete()
+            except Exception:pass
+        resp=await ask_ai(question)
+        if is_private:
+            if replied_only:
+                await event.delete()
+                await client.send_message(cid,f'🤖 پاسخ AI:\n\n{resp}',reply_to=rmsg.id,link_preview=False)
+            else:
+                await event.edit(f'🤖 پاسخ AI:\n\n{resp}')
+        else:
+            await asyncio.sleep(1.2)
+            full=f'🤖 پاسخ AI:\n\n{resp}'
+            chunks=[full[i:i+3500]for i in range(0,len(full),3500)]
+            reply_id=rmsg.id if rmsg else None
+            for i,ch in enumerate(chunks):
+                try:
+                    await client.send_message(cid,ch,reply_to=reply_id,link_preview=False)
+                    reply_id=None
+                    if i<len(chunks)-1:await asyncio.sleep(1.5)
+                except errors.FloodWaitError as e:
+                    await asyncio.sleep(e.seconds+1)
+                    try:await client.send_message(cid,ch,reply_to=reply_id,link_preview=False)
+                    except Exception:pass
+                    reply_id=None
+    except errors.ChatWriteForbiddenError:
+        pass
+    except Exception as e:
+        if is_private:
+            try:await event.edit(f'❌ {str(e)[:200]}')
+            except Exception:pass
     finally:
         AI_LOCK.pop(cid,None)
 @client.on(events.NewMessage(pattern=r'^/price\s+(on|off)$',chats='me'))
