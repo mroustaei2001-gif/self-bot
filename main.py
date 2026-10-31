@@ -702,7 +702,7 @@ async def ban_detector(event):
 
 RESERVED_COMMANDS = {'/rp', '/m', '/mwho', '/bot', '/common', '/name', '/banlog', '/pmlog', '/font', '/reveal', '/spamcheck', '/ttl', '/click', '/dl', '/dlast', '/getmsg', '/auto', '/status', '/clock', '/price', '/ping', '/save', '/del', '/ghost', '/help', '/ask', '/type', '/hack', '/hearts', '/moon', '/timer', '/userinfo', '/kang'}
 
-from telethon.tl.types import InputMessageEntityMentionName
+from telethon.tl.types import MessageEntityTextUrl
 
 def get_utf16_len(text):
     return len(text.encode('utf-16-le')) // 2
@@ -719,7 +719,7 @@ async def stealth_mention_handler(event):
     target_user = None
     clean_msg = ""
 
-    # ۱. استفاده از // روی ریپلای
+    # ۱. پاسخ مخفی با // روی ریپلای
     if text.startswith('//') and event.is_reply:
         clean_msg = text[2:].strip()
         reply_obj = await event.get_reply_message()
@@ -729,7 +729,7 @@ async def stealth_mention_handler(event):
             except Exception:
                 pass
 
-    # ۲. استفاده از / روی ریپلای
+    # ۲. پاسخ مخفی با یک اسلش / روی ریپلای
     elif text.startswith('/') and not text.startswith('/ask') and not text.startswith('/ping') and event.is_reply:
         clean_msg = text.lstrip('/').strip()
         reply_obj = await event.get_reply_message()
@@ -739,7 +739,7 @@ async def stealth_mention_handler(event):
             except Exception:
                 pass
 
-    # ۳. استفاده از + برای آخرین فرد بدون ریپلای
+    # ۳. منشن آخرین فرد چت‌کننده با علامت +
     elif text.startswith('+ ') or text.startswith('++'):
         clean_msg = text.lstrip('+').strip()
         cid = event.chat_id
@@ -753,21 +753,17 @@ async def stealth_mention_handler(event):
 
     if target_user and clean_msg:
         try:
-            # دریافت ورودی استاندارد کاربر برای پروتکل تلگرام
-            input_user = await event.client.get_input_entity(target_user)
             await event.delete()
 
-            # تلگرام تنها زمانی منشن بدون ریپلای را قبول می‌کند که نام شخص در متن باشد
             user_name = target_user.first_name or "کاربر"
             final_text = f"{user_name}: {clean_msg}"
-            
-            # طول نام به فرمت UTF-16
             name_len = get_utf16_len(user_name)
 
-            entity = InputMessageEntityMentionName(
+            # اتصال لینک مستقیم کاربر به متن نام او در سطح انتیتی
+            entity = MessageEntityTextUrl(
                 offset=0,
                 length=name_len,
-                user_id=input_user
+                url=f"tg://user?id={target_user.id}"
             )
 
             await event.client.send_message(
