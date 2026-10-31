@@ -1166,56 +1166,85 @@ async def inline_trigger_fallback(event):
     # بررسی ارسال از طرف خود اکانت
     if not (event.out or event.sender_id == (await client.get_me()).id):
         return
-        
-    text = (event.raw_text or event.message.message or '').strip()
-    
-    # اجرای ماه
-    if text == '/moon':
-        for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
+# ==================== ربات اینلاین و پردازشگر خودکار ====================
+bot_client = None
+if BOT_TOKEN:
+    from telethon.sessions import MemorySession
+    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
+
+    @bot_client.on(events.InlineQuery)
+    async def inline_menu_handler(event):
+        builder = event.builder
+        results = [
+            builder.article(
+                title="🌙 انیمیشن فازهای ماه",
+                description="اجرای چرخه ماه",
+                text="🌑"
+            ),
+            builder.article(
+                title="❤️ انیمیشن قلب‌های رنگی",
+                description="اجرای چرخه قلب‌ها",
+                text="🤍"
+            ),
+            builder.article(
+                title="💀 هک نمایشی",
+                description="ترمینال نفوذ",
+                text="💻 ورود به ترمینال..."
+            ),
+            builder.article(
+                title="⏳ تایمر ۳۰ ثانیه‌ای",
+                description="شمارش معکوس ۳۰ ثانیه",
+                text="⏳ زمان باقی‌مانده: 30 ثانیه"
+            )
+        ]
+        await event.answer(results, cache_time=1)
+
+# این هندلر بدون قفل شدن روی شرط‌های اضافی، پیام خودتان را فورا متحرک می‌کند
+@client.on(events.NewMessage(outgoing=True))
+async def inline_anim_runner(event):
+    raw = (event.raw_text or '').strip()
+
+    # انیمیشن ماه
+    if raw in ['🌑', '/moon']:
+        for m in ["🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
+            await asyncio.sleep(0.4)
             try:
                 await event.edit(m)
-                await asyncio.sleep(0.35)
             except Exception:
                 break
-                
-    # اجرای قلب‌ها
-    elif text == '/hearts':
-        for h in ["🤍", "💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
+
+    # انیمیشن قلب‌ها
+    elif raw in ['🤍', '/hearts']:
+        for h in ["💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
+            await asyncio.sleep(0.35)
             try:
                 await event.edit(h)
-                await asyncio.sleep(0.3)
-            except Exception:
-                break
-                
-    # اجرای هک
-    elif text == '/hack':
-        for s in ["💻 ورود به ترمینال...", "🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "✅ اتمام دسترسی"]:
-            try:
-                await event.edit(f"`{s}`")
-                await asyncio.sleep(0.7)
             except Exception:
                 break
 
-    # اجرای تایمر
-    elif text.startswith('/timer'):
-        parts = text.split()
-        secs = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 30
-        for s in range(secs, 0, -1):
+    # هک نمایشی
+    elif raw in ['💻 ورود به ترمینال...', '/hack']:
+        steps = ["🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "📥 استخراج داده‌ها...", "✅ اتمام دسترسی!"]
+        for s in steps:
+            await asyncio.sleep(0.8)
+            try:
+                await event.edit(f"`{s}`")
+            except Exception:
+                break
+
+    # تایمر ۳۰ ثانیه‌ای
+    elif raw in ['⏳ زمان باقی‌مانده: 30 ثانیه', '/timer 30']:
+        for s in range(29, 0, -1):
+            await asyncio.sleep(1)
             try:
                 await event.edit(f"⏳ زمان باقی‌مانده: **{s}** ثانیه")
-                await asyncio.sleep(1)
             except Exception:
                 break
-        await event.edit("⏰ **زمان به پایان رسید!**")
+        try:
+            await event.edit("⏰ **زمان به پایان رسید!**")
+        except Exception:
+            pass
 
-        
-    elif text == '/hack':
-        for s in ["💻 ورود به ترمینال...", "🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "✅ اتمام دسترسی"]:
-            try:
-                await event.edit(f"`{s}`")
-                await asyncio.sleep(0.7)
-            except Exception:
-                break
 
 # ==================== اجرای اصلی ====================
 async def main():
