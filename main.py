@@ -1,4 +1,5 @@
 import asyncio, os, re, json, time, unicodedata, urllib.request, urllib.parse, io
+from PIL import Image
 from datetime import datetime, timezone, timedelta
 from telethon import TelegramClient, events, errors, types
 from telethon.sessions import StringSession
@@ -914,22 +915,37 @@ async def userinfo_cmd(event):
 
 # --- استیکرساز سریع (Kang) ---
 # --- استیکرساز سریع (Kang) ---
+# --- استیکرساز سریع و استاندارد (Kang) ---
 @client.on(events.NewMessage(pattern=r'^/kang(?:\s+([\s\S]+))?$', outgoing=True))
 async def kang_cmd(event):
     emoji = (event.pattern_match.group(1) or '🤔').strip()
     rmsg = await event.get_reply_message()
     if not rmsg or not rmsg.media:
         await event.edit('❌ لطفاً روی یک عکس، میم یا استیکر ریپلای کنید.'); return
-    await event.edit('🎨 در حال دریافت و ساخت استیکر...')
+    await event.edit('🎨 در حال تغییر ابعاد و ساخت استیکر استاندارد...')
     try:
         photo_bytes = await rmsg.download_media(file=bytes)
         if not photo_bytes:
             await event.edit('❌ دریافت فایل انجام نشد.'); return
 
+        # تغییر سایز استاندارد به حداکثر 512 پیکسل با حفظ نسبت ابعاد
+        image = Image.open(io.BytesIO(photo_bytes)).convert("RGBA")
+        max_size = 512
+        w, h = image.size
+        scale = max_size / max(w, h)
+        new_w, new_h = int(w * scale), int(h * scale)
+        image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
+
+        # تبدیل به بایت‌های PNG
+        output_io = io.BytesIO()
+        image.save(output_io, format="PNG")
+        resized_bytes = output_io.getvalue()
+
+        # نام و مشخصات پک کاربری
         pack_name = f"kang_{ME_ID}_v1_by_{ME_USER}" if ME_USER else f"kang_{ME_ID}_v1"
         pack_title = f"@{ME_USER or 'My'} Kang Pack"
 
-        file = await client.upload_file(photo_bytes)
+        file = await client.upload_file(resized_bytes)
         doc = InputMediaUploadedDocument(
             file=file,
             mime_type='image/png',
@@ -957,8 +973,6 @@ async def kang_cmd(event):
             ))
             await event.edit(f'🎉 پک استیکر ساخته و استیکر اضافه شد!\n🔗 https://t.me/addstickers/{pack_name}')
     except Exception as e:
-        await event.edit(f'❌ خطا در ساخت استیکر: {str(e)[:150]}')
-
         await event.edit(f'❌ خطا در ساخت استیکر: {str(e)[:150]}')
 
 # --- سایر دستورات سلف‌بات ---
