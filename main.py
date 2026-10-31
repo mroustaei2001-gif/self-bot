@@ -193,6 +193,33 @@ def _gemini_sync(question, timeout=30):
     if not cleaned_key:
         return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
 
+    # 1. دریافت لیست مدل‌های رایگان فعال در همین لحظه
+    active_free_models = []
+    try:
+        req_models = urllib.request.Request(
+            "https://openrouter.ai/api/v1/models",
+            headers={'User-Agent': 'Mozilla/5.0'}
+        )
+        with urllib.request.urlopen(req_models, timeout=10) as r:
+            m_data = json.loads(r.read().decode('utf-8'))
+            for item in m_data.get('data', []):
+                mid = item.get('id', '')
+                pricing = item.get('pricing', {})
+                # مدل‌هایی که هزینه ورودی و خروجی آن‌ها صفر است
+                if ':free' in mid or (pricing.get('prompt') == '0' and pricing.get('completion') == '0'):
+                    active_free_models.append(mid)
+    except Exception:
+        pass
+
+    # مدل‌های پشتیبان در صورت عدم دریافت لیست
+    fallback_models = [
+        "google/gemma-2-9b-it:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "mistralai/mistral-7b-instruct:free",
+        "qwen/qwen-2.5-72b-instruct:free"
+    ]
+    models_to_test = active_free_models[:5] if active_free_models else fallback_models
+
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         'Authorization': f'Bearer {cleaned_key}',
@@ -201,20 +228,14 @@ def _gemini_sync(question, timeout=30):
         'X-Title': 'Telegram SelfBot'
     }
 
-    free_models = [
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "google/gemini-2.0-flash-lite-preview-02-05:free",
-        "deepseek/deepseek-r1:free"
-    ]
-
     last_error = ""
-    for model_name in free_models:
+    for model_name in models_to_test:
         payload = {
             "model": model_name,
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful and concise AI assistant. Always reply concisely in Persian."
+                    "content": "You are a helpful AI assistant. Always reply concisely in Persian."
                 },
                 {"role": "user", "content": question}
             ]
@@ -237,7 +258,7 @@ def _gemini_sync(question, timeout=30):
             last_error = str(e)[:100]
             continue
 
-    return f'❌ خطا در ارتباط: {last_error}'
+    return f'❌ هیچ مدل رایگان فعالی در این لحظه پاسخ نداد: {last_error}'
 
 async def ask_ai(question, timeout=40):
     try:
