@@ -191,23 +191,23 @@ async def fetch_text(url, timeout=20):
 def _gemini_sync(question, timeout=30):
     cleaned_key = (GEMINI_API_KEY or '').strip().replace('\n', '').replace('\r', '')
     if not cleaned_key:
-        return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
+        return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
 
-    # استفاده از هدرهای رسمی برای کلیدهای احراز هویت گوگل
-    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': cleaned_key,
-        'Authorization': f'Bearer {cleaned_key}'
+        'Authorization': f'Bearer {cleaned_key}',
+        'Content-Type': 'application/json'
     }
 
     payload = {
-        "contents": [{
-            "parts": [{"text": question}]
-        }],
-        "systemInstruction": {
-            "parts": [{"text": "You are a helpful and concise AI assistant. Always reply concisely in Persian."}]
-        }
+        "model": "meta-llama/llama-3.3-70b-instruct:free",
+        "messages": [
+            {
+                "role": "system",
+                "content": "You are a helpful and concise AI assistant. Always reply concisely in Persian."
+            },
+            {"role": "user", "content": question}
+        ]
     }
 
     data = json.dumps(payload).encode('utf-8')
@@ -215,11 +215,11 @@ def _gemini_sync(question, timeout=30):
 
     with urllib.request.urlopen(req, timeout=timeout) as response:
         res_json = json.loads(response.read().decode('utf-8'))
-        candidates = res_json.get('candidates', [])
-        if candidates:
-            parts = candidates[0].get('content', {}).get('parts', [])
-            if parts:
-                return parts[0].get('text', '').strip()
+        choices = res_json.get('choices', [])
+        if choices:
+            msg = choices[0].get('message', {}).get('content', '')
+            if msg:
+                return msg.strip()
     return '❌ پاسخی دریافت نشد.'
 
 
