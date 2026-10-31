@@ -1125,48 +1125,8 @@ async def gen_mode():
     print('[GEN] SESSION_STRING:', client.session.save(), flush=True)
     await client.disconnect()
 
-# ==================== ربات اینلاین ====================
-# ==================== ربات اینلاین (فقط اسلش‌های لمسی) ====================
-bot_client = None
-if BOT_TOKEN:
-    from telethon.sessions import MemorySession
-    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
-
-    @bot_client.on(events.InlineQuery)
-    async def inline_menu_handler(event):
-        builder = event.builder
-        results = [
-            builder.article(
-                title="🌙 انیمیشن فازهای ماه",
-                description="/moon",
-                text="/moon"
-            ),
-            builder.article(
-                title="❤️ انیمیشن قلب‌های رنگی",
-                description="/hearts",
-                text="/hearts"
-            ),
-            builder.article(
-                title="💀 هک نمایشی",
-                description="/hack",
-                text="/hack"
-            ),
-            builder.article(
-                title="⏳ تایمر ۳۰ ثانیه‌ای",
-                description="/timer 30",
-                text="/timer 30"
-            )
-        ]
-        await event.answer(results, cache_time=1)
-
-# --- پردازشگر اجرای خودکار دستورات لمسی ---
-# --- پردازشگر مطمئن و سراسری دستورات اینلاین ---
-@client.on(events.NewMessage)
-async def inline_trigger_fallback(event):
-    # بررسی ارسال از طرف خود اکانت
-    if not (event.out or event.sender_id == (await client.get_me()).id):
-        return
 # ==================== ربات اینلاین و پردازشگر خودکار ====================
+# ==================== ربات اینلاین با قابلیت ویرایش خودکار ====================
 bot_client = None
 if BOT_TOKEN:
     from telethon.sessions import MemorySession
@@ -1177,21 +1137,25 @@ if BOT_TOKEN:
         builder = event.builder
         results = [
             builder.article(
+                id="anim_moon",
                 title="🌙 انیمیشن فازهای ماه",
                 description="اجرای چرخه ماه",
                 text="🌑"
             ),
             builder.article(
+                id="anim_hearts",
                 title="❤️ انیمیشن قلب‌های رنگی",
                 description="اجرای چرخه قلب‌ها",
                 text="🤍"
             ),
             builder.article(
+                id="anim_hack",
                 title="💀 هک نمایشی",
                 description="ترمینال نفوذ",
-                text="💻 ورود به ترمینال..."
+                text="💻 `ورود به ترمینال...`"
             ),
             builder.article(
+                id="anim_timer",
                 title="⏳ تایمر ۳۰ ثانیه‌ای",
                 description="شمارش معکوس ۳۰ ثانیه",
                 text="⏳ زمان باقی‌مانده: 30 ثانیه"
@@ -1199,51 +1163,52 @@ if BOT_TOKEN:
         ]
         await event.answer(results, cache_time=1)
 
-# این هندلر بدون قفل شدن روی شرط‌های اضافی، پیام خودتان را فورا متحرک می‌کند
-@client.on(events.NewMessage(outgoing=True))
-async def inline_anim_runner(event):
-    raw = (event.raw_text or '').strip()
+    # رویداد رسمی کلیک روی گزینه‌های اینلاین و اجرای مستقیم انیمیشن
+    @bot_client.on(events.ChosenInlineResult)
+    async def on_chosen_inline(event):
+        r_id = event.result_id
+        
+        # اجرای انیمیشن ماه
+        if r_id == "anim_moon":
+            for m in ["🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
+                await asyncio.sleep(0.4)
+                try:
+                    await event.edit(m)
+                except Exception:
+                    break
 
-    # انیمیشن ماه
-    if raw in ['🌑', '/moon']:
-        for m in ["🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
-            await asyncio.sleep(0.4)
-            try:
-                await event.edit(m)
-            except Exception:
-                break
+        # اجرای انیمیشن قلب‌ها
+        elif r_id == "anim_hearts":
+            for h in ["💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
+                await asyncio.sleep(0.35)
+                try:
+                    await event.edit(h)
+                except Exception:
+                    break
 
-    # انیمیشن قلب‌ها
-    elif raw in ['🤍', '/hearts']:
-        for h in ["💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
-            await asyncio.sleep(0.35)
-            try:
-                await event.edit(h)
-            except Exception:
-                break
+        # اجرای هک نمایشی
+        elif r_id == "anim_hack":
+            steps = ["🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "📥 استخراج داده‌ها...", "✅ اتمام دسترسی!"]
+            for s in steps:
+                await asyncio.sleep(0.8)
+                try:
+                    await event.edit(f"`{s}`")
+                except Exception:
+                    break
 
-    # هک نمایشی
-    elif raw in ['💻 ورود به ترمینال...', '/hack']:
-        steps = ["🔍 اسکن پورت‌ها...", "🔓 دور زدن فایروال...", "📥 استخراج داده‌ها...", "✅ اتمام دسترسی!"]
-        for s in steps:
-            await asyncio.sleep(0.8)
+        # اجرای تایمر ۳۰ ثانیه‌ای
+        elif r_id == "anim_timer":
+            for s in range(29, 0, -1):
+                await asyncio.sleep(1)
+                try:
+                    await event.edit(f"⏳ زمان باقی‌مانده: **{s}** ثانیه")
+                except Exception:
+                    break
             try:
-                await event.edit(f"`{s}`")
+                await event.edit("⏰ **زمان به پایان رسید!**")
             except Exception:
-                break
+                pass
 
-    # تایمر ۳۰ ثانیه‌ای
-    elif raw in ['⏳ زمان باقی‌مانده: 30 ثانیه', '/timer 30']:
-        for s in range(29, 0, -1):
-            await asyncio.sleep(1)
-            try:
-                await event.edit(f"⏳ زمان باقی‌مانده: **{s}** ثانیه")
-            except Exception:
-                break
-        try:
-            await event.edit("⏰ **زمان به پایان رسید!**")
-        except Exception:
-            pass
 
 
 # ==================== اجرای اصلی ====================
