@@ -1250,7 +1250,7 @@ async def main():
 
     load_autos()
     load_clicks()
-    load_owner()
+    load_owners()
     me = await client.get_me()
     ME_ID = me.id
     ME_USER = me.username or ""
