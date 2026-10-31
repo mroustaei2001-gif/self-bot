@@ -748,7 +748,61 @@ async def smart_rp_handler(event):
     except errors.ChatWriteForbiddenError: pass
     except Exception:
         if event.chat_id in PENDING_MENTION: del PENDING_MENTION[event.chat_id]
+            
+          from telethon.tl.types import MessageEntityMentionName
 
+def get_utf16_len(text):
+    return len(text.encode('utf-16-le')) // 2
+
+@client.on(events.NewMessage(outgoing=True))
+async def direct_stealth_mention(event):
+    if not event.is_group and not event.is_channel:
+        return
+
+    text = (event.raw_text or '').strip()
+    if not text:
+        return
+
+    target_id = None
+    clean_msg = ""
+
+    # سناریو ۱: ریپلای مخفی با // روی پیام کاربر
+    if text.startswith('//') and event.is_reply:
+        clean_msg = text[2:].strip()
+        reply_obj = await event.get_reply_message()
+        if reply_obj and reply_obj.sender_id:
+            target_id = reply_obj.sender_id
+
+    # سناریو ۲: پاسخ به آخرین گوینده گروه با شروع پیام با +
+    elif text.startswith('+ ') or text.startswith('++'):
+        clean_msg = text.lstrip('+').strip()
+        cid = event.chat_id
+        for (c_id, u_id), msg in reversed(list(LAST_MSG_BY_USER.items())):
+            if c_id == cid and u_id != ME_ID:
+                target_id = u_id
+                break
+
+    if target_id and clean_msg:
+        try:
+            await event.delete()
+            parts = clean_msg.split(' ', 1)
+            first_word = parts[0]
+            word_len = get_utf16_len(first_word)
+            
+            mention_entity = MessageEntityMentionName(
+                offset=0,
+                length=word_len,
+                user_id=target_id
+            )
+            
+            await client.send_message(
+                event.chat_id,
+                clean_msg,
+                formatting_entities=[mention_entity]
+            )
+        except Exception:
+            pass
+  
 # --- بخش هوش مصنوعی ---
 @client.on(events.NewMessage(pattern=r'^/ask(?:\s+([\s\S]*))?$', outgoing=True))
 async def ask_cmd(event):
