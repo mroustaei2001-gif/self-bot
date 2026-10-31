@@ -1125,8 +1125,8 @@ async def gen_mode():
     print('[GEN] SESSION_STRING:', client.session.save(), flush=True)
     await client.disconnect()
 
-# --- منوی شناور اینلاین (دکمه‌های آماده) ---
-# ==================== ربات اینلاین (منوی شناور) ====================
+# ==================== ربات اینلاین ====================
+# ==================== ربات اینلاین (فقط اسلش‌های لمسی) ====================
 bot_client = None
 if BOT_TOKEN:
     from telethon.sessions import MemorySession
@@ -1135,75 +1135,14 @@ if BOT_TOKEN:
     @bot_client.on(events.InlineQuery)
     async def inline_menu_handler(event):
         builder = event.builder
-        q = (event.text or '').strip()
-        ask_text = f"/ask {q}" if q else "/ask "
-
         results = [
-            builder.article(
-                title="🤖 پرسش از هوش مصنوعی",
-                description=f"{ask_text} — پاسخ تحلیلی با سرچ زنده وب",
-                text=ask_text
-            ),
-            builder.article(
-                title="💵 فعال‌سازی نرخ آنلاین در بیو",
-                description="/price on — آپدیت خودکار نرخ دلار، طلا و بیت‌کوین",
-                text="/price on"
-            ),
-            builder.article(
-                title="🛑 خاموش کردن نرخ در بیو",
-                description="/price off — غیرفعال‌سازی آپدیت نرخ",
-                text="/price off"
-            ),
             builder.article(
                 title="🌙 انیمیشن فازهای ماه",
-                description="/moon — اجرای چرخه کامل ماه",
-                text="/moon"
-            ),
-            builder.article(
-                title="❤️ بارش قلب‌های رنگی",
-                description="/hearts — انیمیشن چرخه رنگی قلب‌ها",
-                text="/hearts"
-            ),
-            builder.article(
-                title="💀 شبیه‌ساز هک",
-                description="/hack — ترمینال نفوذ نمایشی",
-                text="/hack"
-            ),
-            builder.article(
-                title="✍️ ماشین‌تحریر زنده",
-                description="/type سلام رفیق — تایپ کاراکتر به کاراکتر متن",
-                text="/type "
-            ),
-            builder.article(
-                title="⏳ شمارش معکوس",
-                description="/timer 30 — تایمر ۳۰ ثانیه‌ای در ادیت پیام",
-                text="/timer 30"
-            ),
-            builder.article(
-                title="🎨 استیکرساز سریع",
-                description="/kang — ساخت استیکر استاندارد ۵۱۲ از ریپلای",
-                text="/kang 🤔"
-            ),
-            builder.article(
-                title="👤 مشخصات کاربر",
-                description="/userinfo — استخراج مشخصات و آیدی فرستنده",
-# ==================== ربات اینلاین (فوق‌العاده ساده و فقط اسلش‌های لمسی) ====================
-bot_client = None
-if BOT_TOKEN:
-    from telethon.sessions import MemorySession
-    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
-
-    @bot_client.on(events.InlineQuery)
-    async def inline_menu_handler(event):
-        builder = event.builder
-        results = [
-            builder.article(
-                title="🌙 فازهای ماه",
                 description="/moon",
                 text="/moon"
             ),
             builder.article(
-                title="❤️ قلب‌های رنگی",
+                title="❤️ انیمیشن قلب‌های رنگی",
                 description="/hearts",
                 text="/hearts"
             ),
@@ -1216,106 +1155,11 @@ if BOT_TOKEN:
                 title="⏳ تایمر ۳۰ ثانیه‌ای",
                 description="/timer 30",
                 text="/timer 30"
-            ),
-        ]
-        await event.answer(results, cache_time=1)
-        
-# --- پردازشگر دستورات لمسی اینلاین ---
-@client.on(events.NewMessage(outgoing=True))
-async def inline_trigger_fallback(event):
-    if not event.via_bot_id:
-        return
-    text = (event.raw_text or '').strip()
-    
-    if text == '/moon':
-        for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
-            try:
-                await event.edit(m)
-# ==================== ربات اینلاین (دستورات تک‌لمسی) ====================
-bot_client = None
-if BOT_TOKEN:
-    from telethon.sessions import MemorySession
-    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
-
-    @bot_client.on(events.InlineQuery)
-    async def inline_menu_handler(event):
-        builder = event.builder
-        results = [
-            builder.article(
-                title="🌙 انیمیشن فازهای ماه",
-                description="اجرای چرخه کامل ماه",
-                text="/moon"
-            ),
-            builder.article(
-                title="❤️ انیمیشن قلب‌های رنگی",
-                description="اجرای چرخه رنگی قلب‌ها",
-                text="/hearts"
-            ),
-            builder.article(
-                title="💀 هک نمایشی",
-                description="ترمینال نفوذ نمایشی",
-                text="/hack"
-            ),
-            builder.article(
-                title="⏳ شمارش معکوس ۳۰ ثانیه‌ای",
-                description="شروع ثانیه‌شمار زنده بدون نیاز به تایپ دستی",
-                text="/timer 30"
             )
         ]
         await event.answer(results, cache_time=1)
 
-# --- پردازشگر اجرای خودکار دستورات ارسالی از اینلاین ---
-@client.on(events.NewMessage(outgoing=True))
-async def inline_trigger_fallback(event):
-    if not event.via_bot_id:
-        return
-    text = (event.raw_text or '').strip()
-    
-    if text == '/moon':
-        for m in ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]:
-            try:
-                await event.edit(m)
-                await asyncio.sleep(0.35)
-            except Exception:
-                break
-                
-    elif text == '/hearts':
-        for h in ["🤍", "💜", "💙", "🩵", "💚", "💛", "🧡", "❤️"]:
-            try:
-# ==================== ربات اینلاین ====================
-bot_client = None
-if BOT_TOKEN:
-    from telethon.sessions import MemorySession
-    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
-
-    @bot_client.on(events.InlineQuery)
-    async def inline_menu_handler(event):
-        builder = event.builder
-        results = [
-            builder.article(
-                title="🌙 انیمیشن فازهای ماه",
-                description="اجرای چرخه کامل ماه",
-                text="/moon"
-            ),
-            builder.article(
-                title="❤️ انیمیشن قلب‌های رنگی",
-                description="اجرای چرخه رنگی قلب‌ها",
-                text="/hearts"
-            ),
-            builder.article(
-                title="💀 هک نمایشی",
-                description="ترمینال نفوذ نمایشی",
-                text="/hack"
-            ),
-            builder.article(
-                title="⏳ شمارش معکوس ۳۰ ثانیه‌ای",
-                description="شروع ثانیه‌شمار زنده",
-                text="/timer 30"
-            )
-        ]
-        await event.answer(results, cache_time=1)
-
-# --- پردازشگر اجرای خودکار دستورات ارسالی از اینلاین ---
+# --- پردازشگر اجرای خودکار دستورات لمسی ---
 @client.on(events.NewMessage(outgoing=True))
 async def inline_trigger_fallback(event):
     if not event.via_bot_id:
@@ -1356,7 +1200,6 @@ async def inline_trigger_fallback(event):
                 await asyncio.sleep(0.7)
             except Exception:
                 break
-
 
 # ==================== اجرای اصلی ====================
 async def main():
