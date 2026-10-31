@@ -1179,47 +1179,53 @@ if BOT_TOKEN and BOT_TOKEN != 'توکن_ربات_را_اینجا_قرار_دهی
 
 async def main():
     global BASE_LAST, ME_ID, ME_USER
+
     if WIPE:
-        for p in (SESSION_PATH + '.session', SESSION_PATH + '.hash'):
+        for p in (SESSION_PATH + '.session',):
             try: os.remove(p)
             except Exception: pass
+
     _original_ack = client.send_read_acknowledge
     async def _ghost_ack(*args, **kwargs):
         if GHOST_MODE: return None
         return await _original_ack(*args, **kwargs)
     client.send_read_acknowledge = _ghost_ack
-    if GEN: await gen_mode(); return
+
+    if GEN:
+        await gen_mode()
+        return
+
     try:
         await client.connect()
         if not await client.is_user_authorized():
-            print('[FATAL] سشن معتبر نیست.', flush=True); return
+            print('[FATAL] سشن کاربری معتبر نیست.')
+            return
     except errors.AuthKeyDuplicatedError:
-        print('[FATAL] AuthKeyDuplicatedError!', flush=True); return
-    
-    load_autos(); load_clicks(); load_owners(); load_watch(); load_custom_fonts(); load_names()
+        print('[FATAL] AuthKeyDuplicatedError')
+        return
+
+    load_autos()
+    load_clicks()
+    load_owner()
     me = await client.get_me()
     ME_ID = me.id
-    ME_USER = me.username
-    BASE_LAST = safe_name_part(CLOCK_RE.sub('', me.last_name or '').strip())
+    ME_USER = me.username or ""
+    BASE_LAST = safe_name_part(me.last_name or "")
     await normalize_stored()
-    
+
     asyncio.create_task(clock_loop())
     asyncio.create_task(auto_loop())
     asyncio.create_task(probe_loop())
-    if PRICE_ON: asyncio.create_task(price_loop())
 
-        if bot_client:
-        await bot_client.start(bot_token=BOT_TOKEN)
-
-    print(f'🚀 سلف‌بات {BOT_VERSION} آنلاین شد!', flush=True)
-    while True:
+    if bot_client:
         try:
-            await client.run_until_disconnected(); break
-        except Exception:
-            await asyncio.sleep(5)
-            try:
-                if not client.is_connected(): await client.connect()
-            except Exception: pass
+            await bot_client.start(bot_token=BOT_TOKEN)
+            print("🤖 ربات اینلاین با موفقیت راه‌اندازی شد.", flush=True)
+        except Exception as e:
+            print(f"⚠️ اخطار در اجرای ربات اینلاین: {e}", flush=True)
+
+    print(f"🚀 سلف‌بات v{BOT_VERSION} آنلاین شد: {me.first_name} (@{ME_USER})", flush=True)
+    await client.run_until_disconnected()
 
 if __name__ == '__main__':
     asyncio.run(main())
