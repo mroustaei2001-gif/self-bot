@@ -1126,68 +1126,111 @@ async def gen_mode():
     await client.disconnect()
 
 # --- منوی شناور اینلاین (دکمه‌های آماده) ---
+# ==================== ربات اینلاین (منوی شناور) ====================
 bot_client = None
-if BOT_TOKEN and BOT_TOKEN != 'توکن_ربات_را_اینجا_قرار_دهید':
-    bot_client = TelegramClient('inline_bot_session', API_ID, API_HASH)
+if BOT_TOKEN:
+    bot_client = TelegramClient(MemorySession(), API_ID, API_HASH)
 
     @bot_client.on(events.InlineQuery)
     async def inline_menu_handler(event):
         builder = event.builder
+        q = (event.text or '').strip()
+        ask_text = f"/ask {q}" if q else "/ask "
+
         results = [
             builder.article(
+                title="🤖 پرسش از هوش مصنوعی",
+                description=f"{ask_text} — پاسخ تحلیلی با سرچ زنده وب",
+                text=ask_text
+            ),
+            builder.article(
+                title="💵 فعال‌سازی نرخ آنلاین در بیو",
+                description="/price on — آپدیت خودکار نرخ دلار، طلا و بیت‌کوین",
+                text="/price on"
+            ),
+            builder.article(
+                title="🛑 خاموش کردن نرخ در بیو",
+                description="/price off — غیرفعال‌سازی آپدیت نرخ",
+                text="/price off"
+            ),
+            builder.article(
                 title="🌙 انیمیشن فازهای ماه",
-                description="/moon — اجرای چرخه کامل و زیبای ماه",
+                description="/moon — اجرای چرخه کامل ماه",
                 text="/moon"
             ),
             builder.article(
-                title="❤️ انیمیشن قلب‌ها",
-                description="/hearts — بارش رنگارنگ ایموجی قلب",
+                title="❤️ بارش قلب‌های رنگی",
+                description="/hearts — انیمیشن چرخه رنگی قلب‌ها",
                 text="/hearts"
             ),
             builder.article(
-                title="💀 هک نمایشی",
-                description="/hack — شبیه‌ساز ترمینال نفوذ و هک",
+                title="💀 شبیه‌ساز هک",
+                description="/hack — ترمینال نفوذ نمایشی",
                 text="/hack"
             ),
             builder.article(
-                title="⏳ تایمر ۳۰ ثانیه‌ای",
-                description="/timer 30 — شمارش معکوس زنده در قالب ادیت",
+                title="✍️ ماشین‌تحریر زنده",
+                description="/type سلام رفیق — تایپ کاراکتر به کاراکتر متن",
+                text="/type "
+            ),
+            builder.article(
+                title="⏳ شمارش معکوس",
+                description="/timer 30 — تایمر ۳۰ ثانیه‌ای در ادیت پیام",
                 text="/timer 30"
             ),
             builder.article(
                 title="🎨 استیکرساز سریع",
-                description="/kang — تبدیل ریپلای عکس به پک استیکر",
+                description="/kang — ساخت استیکر استاندارد ۵۱۲ از ریپلای",
                 text="/kang 🤔"
             ),
             builder.article(
                 title="👤 مشخصات کاربر",
-                description="/userinfo — استخراج آیدی و دیتاسنتر فرستنده",
+                description="/userinfo — استخراج مشخصات و آیدی فرستنده",
                 text="/userinfo"
             ),
             builder.article(
+                title="👻 حالت روح",
+                description="/ghost on — عدم ارسال تیک دوم و وضعیت خوانده شدن",
+                text="/ghost on"
+            ),
+            builder.article(
                 title="📊 وضعیت سلف‌بات",
-                description="/status — نمایش ماژول‌ها و شمارنده‌ها",
+                description="/status — نمایش آمار وضعیت ماژول‌ها",
                 text="/status"
             ),
             builder.article(
-                title="👻 حالت روح",
-                description="/ghost on — عدم ارسال تیک دوم سین پیام",
-                text="/ghost on"
+                title="🕐 ساعت زنده روی نام",
+                description="/clock on — فعال‌سازی ساعت روی اسم اکانت",
+                text="/clock on"
             ),
+            builder.article(
+                title="🚨 لاگ اخراج (BanLog)",
+                description="/banlog on — ثبت گزارش اخراج‌ها در Saved Messages",
+                text="/banlog on"
+            ),
+            builder.article(
+                title="⏱️ ذخیره مدیا زمان‌دار (TTL)",
+                description="/ttl on — ذخیره عکس‌های یکبار مصرف پی‌وی",
+                text="/ttl on"
+            )
         ]
         await event.answer(results, cache_time=1)
 
+# ==================== اجرای اصلی ====================
 async def main():
     global BASE_LAST, ME_ID, ME_USER
 
     if WIPE:
         for p in (SESSION_PATH + '.session',):
-            try: os.remove(p)
-            except Exception: pass
+            try:
+                os.remove(p)
+            except Exception:
+                pass
 
     _original_ack = client.send_read_acknowledge
     async def _ghost_ack(*args, **kwargs):
-        if GHOST_MODE: return None
+        if GHOST_MODE:
+            return None
         return await _original_ack(*args, **kwargs)
     client.send_read_acknowledge = _ghost_ack
 
@@ -1219,7 +1262,9 @@ async def main():
 
     if bot_client:
         try:
-            await bot_client.start(bot_token=BOT_TOKEN)
+            await bot_client.connect()
+            if not await bot_client.is_user_authorized():
+                await bot_client.sign_in(bot_token=BOT_TOKEN)
             print("🤖 ربات اینلاین با موفقیت راه‌اندازی شد.", flush=True)
         except Exception as e:
             print(f"⚠️ اخطار در اجرای ربات اینلاین: {e}", flush=True)
