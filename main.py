@@ -195,7 +195,7 @@ def _gemini_sync(question):
     
     client_ai = genai.Client(api_key=GEMINI_API_KEY)
     response = client_ai.models.generate_content(
-        model='gemini-2.0-flash',  # مدل پایدار و جدید گوگل
+        model='gemini-2.5-flash',
         contents=question,
         config={
             'system_instruction': 'You are a precise, up-to-date AI assistant. Always reply concisely in Persian unless requested otherwise.'
@@ -203,7 +203,7 @@ def _gemini_sync(question):
     )
     if response and response.text:
         return response.text.strip()
-    return '❌ پاسخی از مدل دریافت نشد.'
+    return '❌ پاسخی دریافت نشد.'
 
 
 async def ask_ai(question, timeout=40):
