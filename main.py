@@ -188,34 +188,46 @@ async def fetch_text(url, timeout=20):
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
 def _blackbox_sync(question, timeout=45):
-    """موتور قدرتمند و رایگان بلک‌باکس با اطلاعات کاملاً به‌روز"""
+    """موتور بلک‌باکس با فعال‌سازی جستجوی وب برای پاسخ‌های روز و بدون توهم"""
     url = 'https://www.blackbox.ai/api/chat'
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
         'Content-Type': 'application/json',
         'Origin': 'https://www.blackbox.ai',
         'Referer': 'https://www.blackbox.ai/'
     }
+    system_instruction = (
+        "You are an expert AI with direct access to real-time factual knowledge. "
+        "Provide 100% accurate, up-to-date facts in Persian. "
+        "Never hallucinate or guess sports players, team squads, or dates. "
+        "If you are unsure about a recent transfer or lineup, state it clearly."
+    )
     payload = json.dumps({
-        'messages': [{'role': 'user', 'content': question}],
+        'messages': [
+            {'role': 'system', 'content': system_instruction},
+            {'role': 'user', 'content': question}
+        ],
         'previewToken': None,
         'codeModelMode': True,
         'agentMode': {},
         'trendingAgentMode': {},
-        'isMicMode': False
+        'isMicMode': False,
+        'isWebSearchMode': True  # فعال‌سازی سرچ وب برای نتایج دقیق روز
     }).encode('utf-8')
 
     req = urllib.request.Request(url, data=payload, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         raw = r.read().decode('utf-8', errors='ignore')
-        # پاک‌سازی تگ‌های داخلی بلک‌باکس در صورت وجود
         clean = re.sub(r'\$~~~.*?~~~\$', '', raw, flags=re.DOTALL)
+        # حذف منابع لینک‌دار فرمت بلک‌باکس در صورت وجود
+        clean = re.sub(r'Sources?:?.*', '', clean, flags=re.IGNORECASE)
         return clean.strip()
 
 def _pollinations_sync(question, timeout=45):
-    """موتور پشتیبان پولینیشنز"""
+    """موتور پشتیبان با مدل قدرتمند و جستجوی فعال"""
     encoded_q = urllib.parse.quote(question)
-    url = f"https://text.pollinations.ai/{encoded_q}?model=openai&seed={int(time.time())}"
+    sys_prompt = urllib.parse.quote("پاسخ دقیق، مستند و بدون حدس و گمان به زبان فارسی بده.")
+    url = f"https://text.pollinations.ai/{encoded_q}?model=searchgpt&system={sys_prompt}"
     req = urllib.request.Request(url, headers={
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
     })
@@ -223,27 +235,25 @@ def _pollinations_sync(question, timeout=45):
         return r.read().decode('utf-8', errors='ignore')
 
 async def ask_ai(question, timeout=60):
-    # تلاش با موتور اول (Blackbox)
     try:
         resp = await asyncio.get_running_loop().run_in_executor(None, _blackbox_sync, question, timeout)
         resp = (resp or '').strip()
-        if resp and not resp.startswith('{"error"'):
+        if resp and not resp.startswith('{"error"') and len(resp) > 5:
             if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
             return resp
     except Exception as e:
         print(f'[AI] blackbox failed: {e}', flush=True)
 
-    # تلاش با موتور پشتیبان (Pollinations)
     try:
         resp = await asyncio.get_running_loop().run_in_executor(None, _pollinations_sync, question, timeout)
         resp = (resp or '').strip()
-        if resp:
+        if resp and len(resp) > 5:
             if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
             return resp
     except Exception as e:
         print(f'[AI] pollinations failed: {e}', flush=True)
 
-    return '❌ سرورهای هوش مصنوعی موقتاً پاسخگو نیستند، لطفاً دوباره امتحان کنید.'
+    return '❌ مشکلی در اتصال به موتورهای جستجو و هوش مصنوعی پیش آمد، لطفا مجدد تلاش کنید.'
 
 
 async def get_usd_from_ai():
