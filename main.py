@@ -213,21 +213,23 @@ def _gemini_sync(question, timeout=30):
     if not cleaned_key:
         return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
 
+    # جستجوی وب برای اطلاعات زنده روز
     web_context = _web_search(question)
+    
     system_prompt = (
-        "شما یک دستیار هوش مصنوعی دقیق و بدون حاشیه هستید. "
-        "فقط و فقط به زبان فارسی سلیس و روان بنویسید. "
-        "اکیداً از نوشتن عبارات انگلیسی، تصحیح اشتباهات تایپی، فرآیند فکر کردن و حروف ناآشنا خودداری کنید. "
-        "مستقیماً پاسخ نهایی را به کاربر ارائه دهید."
+        "شما یک دستیار هوش مصنوعی دقیق، روان و مسلط به زبان فارسی هستید. "
+        "فقط و فقط به زبان فارسی سلیس و استاندارد پاسخ دهید. "
+        "از آوردن کلمات انگلیسی، تفکرات داخلی یا عذرخواهی خودداری کنید و مستقیم به موضوع بپردازید."
     )
     if web_context:
-        system_prompt += f"\n\nاطلاعات جستجوی وب برای استناد:\n{web_context}"
+        system_prompt += f"\n\nاطلاعات استخراج شده از اینترنت:\n{web_context}"
 
-    reliable_models = [
-        "qwen/qwen-2.5-72b-instruct:free",
-        "deepseek/deepseek-chat:free",
-        "google/gemini-2.0-flash-exp:free",
-        "meta-llama/llama-3.3-70b-instruct:free"
+    # لیست رسمی و پایدار مدل‌های رایگان Qwen و Meta در OpenRouter
+    free_target_models = [
+        "qwen/qwen3-coder:free",
+        "qwen/qwen3.8-27b:free",
+        "meta-llama/llama-3.3-70b-instruct:free",
+        "openrouter/free"  # روتر خودکار؛ در صورت شلوغی به یک مدل آزاد هدایت می‌کند
     ]
 
     url = "https://openrouter.ai/api/v1/chat/completions"
@@ -239,9 +241,38 @@ def _gemini_sync(question, timeout=30):
     }
 
     last_error = ""
-    for model_name in reliable_models:
+    for model_name in free_target_models:
         payload = {
             "model": model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            "temperature": 0.4,
+            "max_tokens": 1000
+        }
+        data = json.dumps(payload).encode('utf-8')
+        req = urllib.request.Request(url, data=data, headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res_json = json.loads(response.read().decode('utf-8'))
+                choices = res_json.get('choices', [])
+                if choices:
+                    msg = choices[0].get('message', {}).get('content', '')
+                    if msg and msg.strip():
+                        # فیلتر پاکسازی نهایی
+                        cleaned = re.sub(r'(?i)(Let me write properly|Stop\.|Clean Persian|Final answer|I need to).*', '', msg, flags=re.DOTALL)
+                        return (cleaned if cleaned.strip() else msg).strip()
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8', errors='ignore')
+            last_error = f"{e.code}: {err_body[:80]}"
+            continue
+        except Exception as e:
+            last_error = str(e)[:80]
+            continue
+
+    return f'❌ خطا در ارتباط: {last_error}'
+
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": system_prompt + "\n\n" + question}
