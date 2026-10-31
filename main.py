@@ -223,7 +223,6 @@ def _gemini_sync(question, timeout=30):
     if web_context:
         system_prompt += f"\n\nاطلاعات جستجوی وب برای استناد:\n{web_context}"
 
-    # مدل‌های پایدار با پردازش عالی خط فارسی
     reliable_models = [
         "qwen/qwen-2.5-72b-instruct:free",
         "deepseek/deepseek-chat:free",
@@ -245,12 +244,10 @@ def _gemini_sync(question, timeout=30):
             "model": model_name,
             "messages": [
                 {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question}
+                {"role": "user", "content": system_prompt + "\n\n" + question}
             ],
             "temperature": 0.3,
-            "max_tokens": 1000,
-            "frequency_penalty": 0.3,
-            "presence_penalty": 0.3
+            "max_tokens": 1000
         }
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(url, data=data, headers=headers)
@@ -261,7 +258,6 @@ def _gemini_sync(question, timeout=30):
                 if choices:
                     msg = choices[0].get('message', {}).get('content', '')
                     if msg:
-                        # فیلتر پاکسازی نهایی جهت جلوگیری از خروج خطاهای احتمالی
                         cleaned = re.sub(r'(?i)(Let me write properly|Stop\.|Clean Persian|Final answer|I need to).*', '', msg, flags=re.DOTALL)
                         return (cleaned if cleaned.strip() else msg).strip()
         except urllib.error.HTTPError as e:
@@ -274,37 +270,6 @@ def _gemini_sync(question, timeout=30):
 
     return f'❌ خطا در ارتباط: {last_error}'
 
-        'HTTP-Referer': 'https://railway.app',
-        'X-Title': 'Telegram SelfBot'
-    }
-
-    last_error = ""
-    for model_name in models_to_test:
-        payload = {
-            "model": model_name,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": question}
-            ]
-        }
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers=headers)
-        try:
-            with urllib.request.urlopen(req, timeout=timeout) as response:
-                res_json = json.loads(response.read().decode('utf-8'))
-                choices = res_json.get('choices', [])
-                if choices:
-                    msg = choices[0].get('message', {}).get('content', '')
-                    if msg: return msg.strip()
-        except urllib.error.HTTPError as e:
-            err_body = e.read().decode('utf-8', errors='ignore')
-            last_error = f"{e.code}: {err_body[:100]}"
-            continue
-        except Exception as e:
-            last_error = str(e)[:100]
-            continue
-
-    return f'❌ خطا در ارتباط: {last_error}'
 
 async def ask_ai(question, timeout=40):
     try:
