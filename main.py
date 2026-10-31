@@ -22,6 +22,7 @@ SESSION_PATH = os.getenv('SESSION_PATH', '/data/sb')
 SESSION_STRING = os.getenv('SESSION_STRING', '')
 PHONE_HASH = os.getenv('PHONE_HASH', '')
 NTFY_TOPIC = os.getenv('NTFY_TOPIC', '')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY', '')
 PRICE_CHANNEL = os.getenv('PRICE_CHANNEL', '@nerkhonlinechannel')
 PRICE_BOT = os.getenv('PRICE_BOT', '@arnaeco_bot')
 PRICE_BOT_CMD = os.getenv('PRICE_BOT_CMD', '/start')
@@ -187,74 +188,46 @@ async def fetch_text(url, timeout=20):
         with urllib.request.urlopen(req, timeout=timeout) as r: return r.read().decode('utf-8', errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
-def _blackbox_sync(question, timeout=45):
-    """موتور بلک‌باکس با فعال‌سازی جستجوی وب برای پاسخ‌های روز و بدون توهم"""
-    url = 'https://www.blackbox.ai/api/chat'
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Content-Type': 'application/json',
-        'Origin': 'https://www.blackbox.ai',
-        'Referer': 'https://www.blackbox.ai/'
+def _gemini_sync(question, timeout=30):
+    if not GEMINI_API_KEY:
+        return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
+    
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    
+    payload = {
+        "contents": [{
+            "parts": [{"text": question}]
+        }],
+        "systemInstruction": {
+            "parts": [{"text": "You are a precise, up-to-date AI assistant. Always reply concisely in Persian unless requested otherwise."}]
+        }
     }
-    system_instruction = (
-        "You are an expert AI with direct access to real-time factual knowledge. "
-        "Provide 100% accurate, up-to-date facts in Persian. "
-        "Never hallucinate or guess sports players, team squads, or dates. "
-        "If you are unsure about a recent transfer or lineup, state it clearly."
-    )
-    payload = json.dumps({
-        'messages': [
-            {'role': 'system', 'content': system_instruction},
-            {'role': 'user', 'content': question}
-        ],
-        'previewToken': None,
-        'codeModelMode': True,
-        'agentMode': {},
-        'trendingAgentMode': {},
-        'isMicMode': False,
-        'isWebSearchMode': True  # فعال‌سازی سرچ وب برای نتایج دقیق روز
-    }).encode('utf-8')
+    
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers=headers)
+    
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        res_json = json.loads(response.read().decode('utf-8'))
+        candidates = res_json.get('candidates', [])
+        if candidates:
+            parts = candidates[0].get('content', {}).get('parts', [])
+            if parts:
+                return parts[0].get('text', '').strip()
+    return '❌ پاسخی از مدل دریافت نشد.'
 
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        raw = r.read().decode('utf-8', errors='ignore')
-        clean = re.sub(r'\$~~~.*?~~~\$', '', raw, flags=re.DOTALL)
-        # حذف منابع لینک‌دار فرمت بلک‌باکس در صورت وجود
-        clean = re.sub(r'Sources?:?.*', '', clean, flags=re.IGNORECASE)
-        return clean.strip()
-
-def _pollinations_sync(question, timeout=45):
-    """موتور پشتیبان با مدل قدرتمند و جستجوی فعال"""
-    encoded_q = urllib.parse.quote(question)
-    sys_prompt = urllib.parse.quote("پاسخ دقیق، مستند و بدون حدس و گمان به زبان فارسی بده.")
-    url = f"https://text.pollinations.ai/{encoded_q}?model=searchgpt&system={sys_prompt}"
-    req = urllib.request.Request(url, headers={
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-    })
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode('utf-8', errors='ignore')
-
-async def ask_ai(question, timeout=60):
+async def ask_ai(question, timeout=40):
     try:
-        resp = await asyncio.get_running_loop().run_in_executor(None, _blackbox_sync, question, timeout)
+        resp = await asyncio.get_running_loop().run_in_executor(None, _gemini_sync, question, timeout)
         resp = (resp or '').strip()
-        if resp and not resp.startswith('{"error"') and len(resp) > 5:
-            if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
-            return resp
+        if len(resp) > 3900:
+            resp = resp[:3900] + '\n...(بریده شد)'
+        return resp
+    except urllib.error.HTTPError as e:
+        err_msg = e.read().decode('utf-8', errors='ignore')
+        return f'❌ خطای API گوگل: {e.code}'
     except Exception as e:
-        print(f'[AI] blackbox failed: {e}', flush=True)
-
-    try:
-        resp = await asyncio.get_running_loop().run_in_executor(None, _pollinations_sync, question, timeout)
-        resp = (resp or '').strip()
-        if resp and len(resp) > 5:
-            if len(resp) > 3900: resp = resp[:3900] + '\n...(بریده شد)'
-            return resp
-    except Exception as e:
-        print(f'[AI] pollinations failed: {e}', flush=True)
-
-    return '❌ مشکلی در اتصال به موتورهای جستجو و هوش مصنوعی پیش آمد، لطفا مجدد تلاش کنید.'
-
+        return f'❌ خطا در ارتباط: {str(e)[:150]}'
 
 async def get_usd_from_ai():
     try:
