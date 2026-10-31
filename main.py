@@ -193,47 +193,34 @@ def _gemini_sync(question, timeout=30):
     if not cleaned_key:
         return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
 
-    def _call(model_name):
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={cleaned_key}"
-        headers = {'Content-Type': 'application/json'}
-        payload = {
-            "contents": [{"parts": [{"text": question}]}],
-            "systemInstruction": {"parts": [{"text": "You are a precise, up-to-date AI assistant. Always reply concisely in Persian."}]}
+    # استفاده از هدرهای رسمی برای کلیدهای احراز هویت گوگل
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    headers = {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': cleaned_key,
+        'Authorization': f'Bearer {cleaned_key}'
+    }
+
+    payload = {
+        "contents": [{
+            "parts": [{"text": question}]
+        }],
+        "systemInstruction": {
+            "parts": [{"text": "You are a helpful and concise AI assistant. Always reply concisely in Persian."}]
         }
-        data = json.dumps(payload).encode('utf-8')
-        req = urllib.request.Request(url, data=data, headers=headers)
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            res_json = json.loads(response.read().decode('utf-8'))
-            candidates = res_json.get('candidates', [])
-            if candidates:
-                parts = candidates[0].get('content', {}).get('parts', [])
-                if parts:
-                    return parts[0].get('text', '').strip()
-        return None
+    }
 
-    # ابتدا تلاش با نام مدل‌های متداول
-    current_model = 'gemini-1.5-flash-latest'
-    try:
-        ans = _call(current_model)
-        if ans: return ans
-    except urllib.error.HTTPError as e:
-        err_text = e.read().decode('utf-8', errors='ignore')
-        # اگر گوگل نام مدل جایگزین را در پیام پیشنهاد داده بود، آن را استخراج می‌کنیم
-        m = re.search(r'models/([a-zA-Z0-9\.\-_]+)', err_text)
-        if m:
-            suggested = m.group(1)
-            # اگر مدلی غیر از مدل فعلی پیشنهاد شده بود با آن صدا می‌زنیم
-            if suggested != current_model:
-                try:
-                    ans2 = _call(suggested)
-                    if ans2: return ans2
-                except Exception:
-                    pass
-        return f"❌ خطای مدل: {err_text[:150]}"
-    except Exception as e:
-        return f"❌ خطا در ارتباط: {str(e)[:150]}"
+    data = json.dumps(payload).encode('utf-8')
+    req = urllib.request.Request(url, data=data, headers=headers)
 
-    return '❌ پاسخی از مدل دریافت نشد.'
+    with urllib.request.urlopen(req, timeout=timeout) as response:
+        res_json = json.loads(response.read().decode('utf-8'))
+        candidates = res_json.get('candidates', [])
+        if candidates:
+            parts = candidates[0].get('content', {}).get('parts', [])
+            if parts:
+                return parts[0].get('text', '').strip()
+    return '❌ پاسخی دریافت نشد.'
 
 
 async def ask_ai(question, timeout=40):
