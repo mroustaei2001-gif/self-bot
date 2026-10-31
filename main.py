@@ -913,19 +913,22 @@ async def userinfo_cmd(event):
     await event.edit(info, parse_mode='md')
 
 # --- استیکرساز سریع (Kang) ---
+# --- استیکرساز سریع (Kang) ---
 @client.on(events.NewMessage(pattern=r'^/kang(?:\s+([\s\S]+))?$', outgoing=True))
 async def kang_cmd(event):
     emoji = (event.pattern_match.group(1) or '🤔').strip()
     rmsg = await event.get_reply_message()
     if not rmsg or not rmsg.media:
         await event.edit('❌ لطفاً روی یک عکس، میم یا استیکر ریپلای کنید.'); return
-    await event.edit('🎨 در حال پردازش و استیکر کردن...')
+    await event.edit('🎨 در حال دریافت و ساخت استیکر...')
     try:
         photo_bytes = await rmsg.download_media(file=bytes)
-        pack_num = 1
-        pack_name = f"kang_{ME_ID}_{pack_num}_by_{ME_USER}" if ME_USER else f"kang_{ME_ID}_{pack_num}"
-        pack_title = f"@{ME_USER or 'My'} Kang Pack v{pack_num}"
-        
+        if not photo_bytes:
+            await event.edit('❌ دریافت فایل انجام نشد.'); return
+
+        pack_name = f"kang_{ME_ID}_v1_by_{ME_USER}" if ME_USER else f"kang_{ME_ID}_v1"
+        pack_title = f"@{ME_USER or 'My'} Kang Pack"
+
         file = await client.upload_file(photo_bytes)
         doc = InputMediaUploadedDocument(
             file=file,
@@ -933,23 +936,29 @@ async def kang_cmd(event):
             attributes=[DocumentAttributeFilename('sticker.png')]
         )
         res = await client(UploadMediaRequest(peer=types.InputPeerSelf(), media=doc))
-        doc_item = types.InputDocument(id=res.document.id, access_hash=res.document.access_hash, file_reference=res.document.file_reference)
+        doc_item = types.InputDocument(
+            id=res.document.id,
+            access_hash=res.document.access_hash,
+            file_reference=res.document.file_reference
+        )
 
         try:
             await client(AddStickerToSetRequest(
                 stickerset=InputStickerSetShortName(short_name=pack_name),
                 sticker=InputStickerSetItem(document=doc_item, emoji=emoji)
             ))
-            await event.edit(f'✅ به پک استیکر اضافه شد!\n🔗 https://t.me/addstickers/{pack_name}')
-        except errors.StickerpackInvalidError:
+            await event.edit(f'✅ به پک اضافه شد!\n🔗 https://t.me/addstickers/{pack_name}')
+        except errors.StickersetInvalidError:
             await client(CreateStickerSetRequest(
                 user_id=types.InputUserSelf(),
                 title=pack_title,
                 short_name=pack_name,
                 stickers=[InputStickerSetItem(document=doc_item, emoji=emoji)]
             ))
-            await event.edit(f'🎉 پک استیکر جدید ساخته شد!\n🔗 https://t.me/addstickers/{pack_name}')
+            await event.edit(f'🎉 پک استیکر ساخته و استیکر اضافه شد!\n🔗 https://t.me/addstickers/{pack_name}')
     except Exception as e:
+        await event.edit(f'❌ خطا در ساخت استیکر: {str(e)[:150]}')
+
         await event.edit(f'❌ خطا در ساخت استیکر: {str(e)[:150]}')
 
 # --- سایر دستورات سلف‌بات ---
