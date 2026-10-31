@@ -748,8 +748,7 @@ async def smart_rp_handler(event):
     except errors.ChatWriteForbiddenError: pass
     except Exception:
         if event.chat_id in PENDING_MENTION: del PENDING_MENTION[event.chat_id]
-            
-          from telethon.tl.types import MessageEntityMentionName
+from telethon.tl.types import MessageEntityMentionName
 
 def get_utf16_len(text):
     return len(text.encode('utf-16-le')) // 2
