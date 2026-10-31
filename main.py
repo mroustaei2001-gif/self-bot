@@ -192,6 +192,7 @@ def _gemini_sync(question, timeout=30):
     if not GEMINI_API_KEY:
         return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
     
+    # اصلاح آدرس مدل پایدار به gemini-1.5-flash
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
     headers = {'Content-Type': 'application/json'}
     
@@ -215,6 +216,7 @@ def _gemini_sync(question, timeout=30):
             if parts:
                 return parts[0].get('text', '').strip()
     return '❌ پاسخی از مدل دریافت نشد.'
+
 
 async def ask_ai(question, timeout=40):
     try:
