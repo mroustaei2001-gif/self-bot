@@ -194,16 +194,32 @@ def _gemini_sync(question):
         return '❌ متغیر GEMINI_API_KEY در تنظیمات ریل‌وی تنظیم نشده است.'
     
     client_ai = genai.Client(api_key=GEMINI_API_KEY)
-    response = client_ai.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=question,
-        config={
-            'system_instruction': 'You are a precise, up-to-date AI assistant. Always reply concisely in Persian unless requested otherwise.'
-        }
-    )
-    if response and response.text:
-        return response.text.strip()
-    return '❌ پاسخی دریافت نشد.'
+    
+    # تست مدل‌های رسمی و پایدار به ترتیب اولویت
+    models_to_try = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-latest',
+        'gemini-1.5-pro'
+    ]
+    
+    last_error = ''
+    for m in models_to_try:
+        try:
+            response = client_ai.models.generate_content(
+                model=m,
+                contents=question,
+                config={
+                    'system_instruction': 'You are a precise, up-to-date AI assistant. Always reply concisely in Persian unless requested otherwise.'
+                }
+            )
+            if response and response.text:
+                return response.text.strip()
+        except Exception as e:
+            last_error = str(e)
+            continue
+            
+    return f'❌ خطا در ارتباط: {last_error[:150]}'
+
 
 
 async def ask_ai(question, timeout=40):
