@@ -188,12 +188,35 @@ async def fetch_text(url, timeout=20):
         with urllib.request.urlopen(req, timeout=timeout) as r: return r.read().decode('utf-8', errors='ignore')
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
+def _web_search(query, max_results=3):
+    try:
+        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'})
+        with urllib.request.urlopen(req, timeout=8) as response:
+            html = response.read().decode('utf-8', errors='ignore')
+            snippets = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', html, re.DOTALL)
+            clean_snippets = [re.sub(r'<[^>]+>', '', s).strip() for s in snippets[:max_results]]
+            if clean_snippets:
+                return "\n".join(clean_snippets)
+    except Exception:
+        pass
+    return ""
+
 def _gemini_sync(question, timeout=30):
     cleaned_key = (GEMINI_API_KEY or '').strip().replace('\n', '').replace('\r', '')
     if not cleaned_key:
         return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
 
-    # 1. دریافت لیست مدل‌های رایگان فعال در همین لحظه
+    # جستجوی خودکار در وب برای دریافت اطلاعات و اخبار زنده
+    web_context = _web_search(question)
+    system_prompt = (
+        "You are an up-to-date, highly accurate AI assistant. "
+        "Use the provided recent web search results to answer current events, rosters, and news accurately. "
+        "Always reply concisely in Persian."
+    )
+    if web_context:
+        system_prompt += f"\n\nRecent Web Search Information:\n{web_context}"
+
     active_free_models = []
     try:
         req_models = urllib.request.Request(
@@ -233,7 +256,7 @@ def _gemini_sync(question, timeout=30):
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a precise AI assistant. If asked about sports rosters, current events, or active roles, clearly mention the reference period and state if information might have changed recently. Always reply concisely in Persian."
+                    "content": system_prompt
                 },
                 {"role": "user", "content": question}
             ]
@@ -256,7 +279,7 @@ def _gemini_sync(question, timeout=30):
             last_error = str(e)[:100]
             continue
 
-    return f'❌ هیچ مدل رایگان فعالی در این لحظه پاسخ نداد: {last_error}'
+    return f'❌ خطا در ارتباط: {last_error}'
 
 async def ask_ai(question, timeout=40):
     try:
