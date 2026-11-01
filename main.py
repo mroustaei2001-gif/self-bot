@@ -607,37 +607,75 @@ async def track_last_msg(event):
 
 @client.on(events.NewMessage(incoming=True))
 async def pm_cache(event):
-    if not PMLOG_ON or not MASTER_ON or ME_ID is None: return
-    if not event.is_private or event.chat_id == ME_ID: return
+    if not PMLOG_ON or not MASTER_ON or ME_ID is None:
+        return
+    if not event.is_private or event.chat_id == ME_ID:
+        return
     sender = await event.get_sender()
-    if getattr(sender, 'bot', False): return
+    if getattr(sender, 'bot', False):
+        return
     name = ((getattr(sender, 'first_name', '') or '') + ' ' + (getattr(sender, 'last_name', '') or '')).strip()
-    PM_CACHE[(event.chat_id, event.id)] = {'text': event.text or '', 'name': name or 'ناشناس', 'media': bool(event.media)}
+    
+    # ذخیره پیام با کلید شناسه پیام (message.id)
+    PM_CACHE[event.id] = {
+        'chat_id': event.chat_id,
+        'sender_id': sender.id if sender else event.chat_id,
+        'text': event.text or '',
+        'name': name or 'ناشناس',
+        'media': bool(event.media)
+    }
     if len(PM_CACHE) > 3000:
-        for k in list(PM_CACHE.keys())[:500]: PM_CACHE.pop(k, None)
+        for k in list(PM_CACHE.keys())[:500]:
+            PM_CACHE.pop(k, None)
 
 @client.on(events.MessageEdited(incoming=True))
 async def pm_edit_logger(event):
-    if not PMLOG_ON or not MASTER_ON or ME_ID is None: return
-    if not event.is_private or event.chat_id == ME_ID: return
+    if not PMLOG_ON or not MASTER_ON or ME_ID is None:
+        return
+    if not event.is_private or event.chat_id == ME_ID:
+        return
     sender = await event.get_sender()
-    if getattr(sender, 'bot', False): return
-    key = (event.chat_id, event.id); old = PM_CACHE.get(key, {})
-    old_text = old.get('text', '(نامشخص)'); name = old.get('name', 'ناشناس')
-    PM_CACHE[key] = {'text': event.text or '', 'name': name, 'media': bool(event.media)}
-    try: await client.send_message('me', f'✏️ ادیت در پی‌وی: {name}\nقبلی: {old_text}\nجدید: {event.text or ""}', parse_mode='md')
-    except Exception: pass
+    if getattr(sender, 'bot', False):
+        return
+    
+    old = PM_CACHE.get(event.id, {})
+    old_text = old.get('text', '(نامشخص)')
+    name = old.get('name', ((getattr(sender, 'first_name', '') or '') + ' ' + (getattr(sender, 'last_name', '') or '')).strip() or 'ناشناس')
+    
+    PM_CACHE[event.id] = {
+        'chat_id': event.chat_id,
+        'sender_id': sender.id if sender else event.chat_id,
+        'text': event.text or '',
+        'name': name,
+        'media': bool(event.media)
+    }
+    try:
+        await client.send_message('me', f'✏️ **ادیت در پی‌وی:** {name}\n**قبلی:** {old_text}\n**جدید:** {event.text or ""}', parse_mode='md')
+    except Exception:
+        pass
 
 @client.on(events.MessageDeleted)
 async def pm_delete_logger(event):
-    if not PMLOG_ON or not MASTER_ON or ME_ID is None: return
-    chat_id = getattr(event, 'chat_id', None)
-    if chat_id is None: return
-    for mid in getattr(event, 'deleted_ids', []):
-        key = (chat_id, mid); rec = PM_CACHE.pop(key, None)
+    if not PMLOG_ON or not MASTER_ON or ME_ID is None:
+        return
+    
+    # در تلثون deleted_ids حاوی لیست شناسه‌های پیام‌های پاک شده است
+    for mid in event.deleted_ids:
+        rec = PM_CACHE.pop(mid, None)
         if rec:
-            try: await client.send_message('me', f'🗑️ حذف در پی‌وی: {rec["name"]}\n{rec["text"] or "(خالی)"}', parse_mode='md')
-            except Exception: pass
+            media_info = " [حاوی مدیا]" if rec.get('media') else ""
+            txt = rec.get('text') or '(بدون متن)'
+            name = rec.get('name', 'ناشناس')
+            uid = rec.get('sender_id', '')
+            try:
+                await client.send_message(
+                    'me',
+                    f'🗑️ **حذف در پی‌وی:** {name} (`{uid}`)\n**متن پیام:** {txt}{media_info}',
+                    parse_mode='md'
+                )
+            except Exception:
+                pass
+
 
 async def log_ban(chat_id, admin_id, chat_title=None):
     if not BAN_LOG: return
@@ -668,33 +706,41 @@ async def log_ban(chat_id, admin_id, chat_title=None):
 
 @client.on(events.Raw(types.UpdateChannelParticipant))
 async def raw_ban_detector(event):
-    if ME_ID is None or not MASTER_ON: return
+    if ME_ID is None or not MASTER_ON or not BAN_LOG:
+        return
     try:
-        if event.user_id != ME_ID: return
+        if event.user_id != ME_ID:
+            return
         np = event.new_participant
-        if not isinstance(np, types.ChannelParticipantBanned): return
-        br = getattr(np, 'banned_rights', None)
-        if br is None or not br.view_messages: return
-        cid = get_peer_id(types.PeerChannel(event.channel_id))
-        actor = getattr(event, 'actor_id', None)
-        await log_ban(cid, actor, None)
-    except Exception: pass
+        # تشخیص بن یا اخراج در سوپرگروه/کانال
+        if isinstance(np, (types.ChannelParticipantBanned, types.ChannelParticipantLeft)):
+            cid = get_peer_id(types.PeerChannel(event.channel_id))
+            actor = getattr(event, 'actor_id', None)
+            await log_ban(cid, actor, None)
+    except Exception:
+        pass
 
 @client.on(events.ChatAction())
 async def ban_detector(event):
-    if ME_ID is None or not MASTER_ON: return
+    if ME_ID is None or not MASTER_ON or not BAN_LOG:
+        return
     try:
-        ids = getattr(event, 'user_id', None) or []
-        if isinstance(ids, int): ids = [ids]
-        if ME_ID not in ids: return
-        if event.user_joined or event.user_added: return
-        admin_id = None
-        try:
-            am = event.action_message
-            if am is not None and getattr(am, 'from_id', None) is not None: admin_id = getattr(am.from_id, 'user_id', None)
-        except Exception: admin_id = None
-        await log_ban(event.chat_id, admin_id, None)
-    except Exception: pass
+        if event.user_kicked or event.user_left:
+            ids = getattr(event, 'user_id', None) or []
+            if isinstance(ids, int):
+                ids = [ids]
+            if ME_ID in ids:
+                admin_id = None
+                try:
+                    am = event.action_message
+                    if am is not None and getattr(am, 'from_id', None) is not None:
+                        admin_id = getattr(am.from_id, 'user_id', None)
+                except Exception:
+                    admin_id = None
+                await log_ban(event.chat_id, admin_id, None)
+    except Exception:
+        pass
+
 
 RESERVED_COMMANDS = {'/rp', '/m', '/mwho', '/bot', '/common', '/name', '/banlog', '/pmlog', '/font', '/reveal', '/spamcheck', '/ttl', '/click', '/dl', '/dlast', '/getmsg', '/auto', '/status', '/clock', '/price', '/ping', '/save', '/del', '/ghost', '/help', '/ask', '/type', '/hack', '/hearts', '/moon', '/timer', '/userinfo', '/kang'}
 
