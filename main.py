@@ -219,11 +219,13 @@ def _gemini_sync(question, timeout=30):
     if web_context:
         system_prompt += f"\n\nاطلاعات استخراج شده از اینترنت:\n{web_context}"
 
-    # تعریف مدل‌ها بیرون از شرط تا همیشه در دسترس حلقه باشند
+    # فهرست پایدارترین مدل‌های کاملاً رایگان با فال‌بک عمومی
     free_target_models = [
-        "google/gemini-2.0-flash-exp:free",
-        "deepseek/deepseek-r1:free",
-        "meta-llama/llama-3.3-70b-instruct:free"
+        "google/gemini-2.0-flash-lite-preview:free",
+        "deepseek/deepseek-chat:free",
+        "mistralai/mistral-7b-instruct:free",
+        "meta-llama/llama-3.2-3b-instruct:free",
+        "openrouter/free"
     ]
 
     url = "https://openrouter.ai/api/v1/chat/completions"
