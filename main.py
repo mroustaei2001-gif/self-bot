@@ -1286,6 +1286,63 @@ async def click_loop():
             pass
         await asyncio.sleep(5)
 
+@client.on(events.NewMessage)
+@client.on(events.MessageEdited)
+async def instant_clicker_handler(event):
+    if not CLICK_ON or not MASTER_ON:
+        return
+
+    buttons = getattr(event, 'buttons', None)
+    if not buttons:
+        return
+
+    # استخراج کلمات هدف از دیکشنری یا لیست CLICKS
+    targets = []
+    if isinstance(CLICKS, dict):
+        for v in CLICKS.values():
+            if isinstance(v, dict):
+                t = v.get('btn')
+                if t:
+                    targets.append(_clean_btn_text(t))
+            elif isinstance(v, str):
+                targets.append(_clean_btn_text(v))
+    
+    # دکمه هدف پیش‌فرض
+    targets.append(_clean_btn_text("بده پیشی بخوره"))
+
+    try:
+        for row_idx, row in enumerate(buttons):
+            for col_idx, btn in enumerate(row):
+                raw_text = getattr(btn, 'text', '') or ''
+                cleaned = _clean_btn_text(raw_text)
+
+                # بررسی شباهت کلمات
+                matched = any(t and (t in cleaned or cleaned in t) for t in targets) or ('پیشی' in cleaned and 'بخوره' in cleaned)
+
+                if matched:
+                    # روش اول: استفاده از متد خود دکمه
+                    try:
+                        await btn.click()
+                        return
+                    except Exception:
+                        pass
+                    
+                    # روش دوم: استفاده از مختصات دکمه در پیام
+                    try:
+                        await event.click(row_idx, col_idx)
+                        return
+                    except Exception:
+                        pass
+
+                    # روش سوم: کلیک با متن خام
+                    try:
+                        await event.click(text=raw_text)
+                        return
+                    except Exception:
+                        pass
+    except Exception:
+        pass
+
 
 @client.on(events.NewMessage(pattern=r'^/click\s+(on|off)$', chats='me'))
 async def click_toggle(event):
