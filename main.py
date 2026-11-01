@@ -1181,26 +1181,33 @@ async def ttl_saver_handler(event):
         return
     if not event.is_private or event.chat_id == ME_ID:
         return
-    
-    # بررسی تایمردار بودن عکس یا ویدیو
+
     media = event.media
     if not media:
         return
-    
+
     ttl_period = getattr(media, 'ttl_seconds', None)
     if ttl_period:
+        file_path = None
         try:
             sender = await event.get_sender()
             name = ((getattr(sender, 'first_name', '') or '') + ' ' + (getattr(sender, 'last_name', '') or '')).strip() or 'ناشناس'
             uid = sender.id if sender else event.chat_id
-            
-            # دانلود مدیا و فوروارد/ارسال به سیود مسیج قبل از سوختن
-            file_bytes = await event.download_media(file=bytes)
-            if file_bytes:
+
+            # دانلود مستقیم مدیا با حفظ پسوند واقعی (عکس یا ویدیو)
+            file_path = await event.download_media(file='/tmp/')
+            if file_path and os.path.exists(file_path):
                 caption = f"⏳ **رسانه تایمردار ذخیره شد!**\n👤 فرستنده: {name} (`{uid}`)\n⏰ زمان خودتخریبی: {ttl_period} ثانیه"
-                await client.send_file('me', file_bytes, caption=caption, parse_mode='md')
+                await client.send_file('me', file_path, caption=caption, parse_mode='md')
         except Exception:
             pass
+        finally:
+            if file_path and os.path.exists(file_path):
+                try:
+                    os.remove(file_path)
+                except Exception:
+                    pass
+
 
 @client.on(events.NewMessage(pattern=r'^/help$', chats='me'))
 async def help_cmd(event):
