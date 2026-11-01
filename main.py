@@ -204,47 +204,67 @@ def _web_search(query, max_results=3):
         pass
     return ""
 
-def _gemini_sync(prompt: str) -> str:
-    # تعریف مستقیم مدل‌ها در بالاترین نقطه تابع
+def _gemini_sync(question, timeout=30):
+    cleaned_key = (GEMINI_API_KEY or '').strip().replace('\n', '').replace('\r', '')
+    if not cleaned_key:
+        return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
+
+    web_context = _web_search(question)
+    
+    system_prompt = (
+        "شما یک دستیار هوش مصنوعی بسیار دقیق، روان و مسلط به زبان فارسی هستید. "
+        "پاسخ را فقط و فقط به زبان فارسی سلیس و استاندارد بنویسید. "
+        "از آوردن کلمات انگلیسی، تفکرات داخلی یا عذرخواهی خودداری کنید و مستقیم به موضوع بپردازید."
+    )
+    if web_context:
+        system_prompt += f"\n\nاطلاعات استخراج شده از اینترنت:\n{web_context}"
+
+    # تعریف مدل‌ها بیرون از شرط تا همیشه در دسترس حلقه باشند
     free_target_models = [
         "google/gemini-2.0-flash-exp:free",
         "deepseek/deepseek-r1:free",
         "meta-llama/llama-3.3-70b-instruct:free"
     ]
 
-    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
-    if not api_key:
-        return "کلید API برای OpenRouter تنظیم نشده است."
-
+    url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
+        'Authorization': f'Bearer {cleaned_key}',
+        'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://railway.app',
+        'X-Title': 'Telegram SelfBot'
     }
 
-    # چرخش روی مدل‌ها تا دریافت اولین پاسخ سالم
-    for model in free_target_models:
+    last_error = ""
+    for model_name in free_target_models:
         payload = {
-            "model": model,
+            "model": model_name,
             "messages": [
-                {"role": "user", "content": prompt}
-            ]
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            "temperature": 0.4,
+            "max_tokens": 1000
         }
         try:
-            resp = requests.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=25
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                choices = data.get("choices", [])
+            data = json.dumps(payload).encode('utf-8')
+            req = urllib.request.Request(url, data=data, headers=headers)
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                res_json = json.loads(response.read().decode('utf-8'))
+                choices = res_json.get('choices', [])
                 if choices:
-                    return choices[0].get("message", {}).get("content", "").strip()
-        except Exception:
+                    msg = choices[0].get('message', {}).get('content', '')
+                    if msg and msg.strip():
+                        cleaned = re.sub(r'(?i)(Let me write properly|Stop\.|Clean Persian|Final answer|I need to).*', '', msg, flags=re.DOTALL)
+                        return (cleaned if cleaned.strip() else msg).strip()
+        except urllib.error.HTTPError as e:
+            err_body = e.read().decode('utf-8', errors='ignore')
+            last_error = f"{e.code}: {err_body[:80]}"
+            continue
+        except Exception as e:
+            last_error = str(e)[:80]
             continue
 
-    return "پاسخی از مدل‌های هوش مصنوعی دریافت نشد یا تمام مدل‌ها با محدودیت مواجه شدند."
+    return f'❌ خطا در ارتباط: {last_error}'
 
 
 
