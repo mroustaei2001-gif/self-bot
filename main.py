@@ -1154,6 +1154,54 @@ async def click_list(event):
         lines.append(f"• `{k}`: دکمه «{v.get('btn')}» در چت `{v.get('chat')}`")
     await event.edit('\n'.join(lines), parse_mode='md')
 
+# --- کنترل لاگ بن ---
+@client.on(events.NewMessage(pattern=r'^/banlog\s+(on|off)$', chats='me'))
+async def banlog_toggle(event):
+    global BAN_LOG
+    BAN_LOG = (event.pattern_match.group(1) == 'on')
+    await event.edit(f'🚨 لاگ بن/اخراج: {"روشن ✅" if BAN_LOG else "خاموش ❌"}')
+
+# --- کنترل لاگ پی‌وی ---
+@client.on(events.NewMessage(pattern=r'^/pmlog\s+(on|off)$', chats='me'))
+async def pmlog_toggle(event):
+    global PMLOG_ON
+    PMLOG_ON = (event.pattern_match.group(1) == 'on')
+    await event.edit(f'📩 لاگ پی‌وی (ادیت و حذف): {"روشن ✅" if PMLOG_ON else "خاموش ❌"}')
+
+# --- کنترل و سیستم ذخیره عکس و فیلم‌های تایمردار (TTL) ---
+@client.on(events.NewMessage(pattern=r'^/ttl\s+(on|off)$', chats='me'))
+async def ttl_toggle(event):
+    global TTL_SAVE
+    TTL_SAVE = (event.pattern_match.group(1) == 'on')
+    await event.edit(f'⏳ ذخیره خودکار مدیاهای تایمردار (TTL): {"روشن ✅" if TTL_SAVE else "خاموش ❌"}')
+
+@client.on(events.NewMessage(incoming=True))
+async def ttl_saver_handler(event):
+    if not TTL_SAVE or not MASTER_ON or ME_ID is None:
+        return
+    if not event.is_private or event.chat_id == ME_ID:
+        return
+    
+    # بررسی تایمردار بودن عکس یا ویدیو
+    media = event.media
+    if not media:
+        return
+    
+    ttl_period = getattr(media, 'ttl_seconds', None)
+    if ttl_period:
+        try:
+            sender = await event.get_sender()
+            name = ((getattr(sender, 'first_name', '') or '') + ' ' + (getattr(sender, 'last_name', '') or '')).strip() or 'ناشناس'
+            uid = sender.id if sender else event.chat_id
+            
+            # دانلود مدیا و فوروارد/ارسال به سیود مسیج قبل از سوختن
+            file_bytes = await event.download_media(file=bytes)
+            if file_bytes:
+                caption = f"⏳ **رسانه تایمردار ذخیره شد!**\n👤 فرستنده: {name} (`{uid}`)\n⏰ زمان خودتخریبی: {ttl_period} ثانیه"
+                await client.send_file('me', file_bytes, caption=caption, parse_mode='md')
+        except Exception:
+            pass
+
 @client.on(events.NewMessage(pattern=r'^/help$', chats='me'))
 async def help_cmd(event):
     await event.edit('''🤖 **راهنمای سلف‌بات نسخه جدید:**
