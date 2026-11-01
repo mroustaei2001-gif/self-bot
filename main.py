@@ -162,17 +162,20 @@ def get_font_for_hour(hour):
     fs = active_fonts()
     return fs[hour % len(fs)]
 
-def small_time_with_font(font):
+def small_time_with_font(font=None):
     tz = timezone(timedelta(hours=3, minutes=30))
     now = datetime.now(tz)
     time_str = now.strftime('%H:%M')
-    if not validate_font(font): return time_str
-    digits = font['d']
-    if len(digits) == 10:
-        table = {ord(char): digits[i] for i, char in enumerate('0123456789')}
-        table[ord(':')] = font['c']
-        return time_str.translate(table)
-    return time_str
+    
+    # مپ دقیق و مرتب ارقام ۰ تا ۹ دایره‌ای
+    circle_map = {
+        '0': '⓪', '1': '①', '2': '②', '3': '③', '4': '④',
+        '5': '⑤', '6': '⑥', '7': '⑦', '8': '⑧', '9': '⑨',
+        ':': '•'
+    }
+    
+    return ''.join(circle_map.get(ch, ch) for ch in time_str)
+
 
 def fa_now():
     tz = timezone(timedelta(hours=3, minutes=30))
