@@ -1232,26 +1232,60 @@ async def ghost(event):
     global GHOST_MODE
     GHOST_MODE = (event.pattern_match.group(1) == 'on')
     await event.edit(f'👻 روح: {"✅" if GHOST_MODE else "❌"}')
+def _clean_btn_text(txt: str) -> str:
+    """نرمال‌سازی متن: حذف اموجی، نیم‌فاصله، علائم و یکسان‌سازی حروف فارسی/عربی"""
+    if not txt:
+        return ""
+    txt = str(txt).replace('ي', 'ی').replace('ك', 'ک')
+    txt = re.sub(r'[\u200c\u200b\u200d\u200e\u200f\u064b-\u065f]', '', txt)
+    txt = re.sub(r'[^\w\s]', ' ', txt)
+    return ' '.join(txt.split()).strip().lower()
+
+
 async def click_loop():
     while True:
         try:
             if CLICK_ON and MASTER_ON:
                 for key, item in list(CLICKS.items()):
                     chat = item.get('chat')
-                    btn_text = item.get('btn')
-                    if not chat or not btn_text: continue
+                    btn_target = item.get('btn')
+                    if not chat or not btn_target:
+                        continue
                     try:
-                        async for msg in client.iter_messages(chat, limit=3):
+                        target_clean = _clean_btn_text(btn_target)
+                        
+                        async for msg in client.iter_messages(chat, limit=5):
                             if msg.buttons:
+                                clicked = False
                                 for row in msg.buttons:
                                     for btn in row:
-                                        if btn_text in (btn.text or ''):
-                                            await btn.click()
-                                            break
-                    except Exception: pass
+                                        raw_text = getattr(btn, 'text', '') or ''
+                                        cleaned = _clean_btn_text(raw_text)
+
+                                        # تطابق غیرحساس به نیم‌فاصله، اموجی و کلمات کلیدی
+                                        if (target_clean and (target_clean in cleaned or cleaned in target_clean)) or ('پیشی' in cleaned and 'بخوره' in cleaned):
+                                            try:
+                                                await btn.click()
+                                                clicked = True
+                                                break
+                                            except Exception:
+                                                try:
+                                                    await msg.click(text=raw_text)
+                                                    clicked = True
+                                                    break
+                                                except Exception:
+                                                    pass
+                                    if clicked:
+                                        break
+                                if clicked:
+                                    break
+                    except Exception:
+                        pass
                     await asyncio.sleep(item.get('interval', 3))
-        except Exception: pass
+        except Exception:
+            pass
         await asyncio.sleep(5)
+
 
 @client.on(events.NewMessage(pattern=r'^/click\s+(on|off)$', chats='me'))
 async def click_toggle(event):
