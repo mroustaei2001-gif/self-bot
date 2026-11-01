@@ -219,11 +219,12 @@ def _gemini_sync(question, timeout=30):
     if web_context:
         system_prompt += f"\n\nاطلاعات استخراج شده از اینترنت:\n{web_context}"
 
-    free_target_models = [
-        "qwen/qwen-2.5-72b-instruct:free",
-        "meta-llama/llama-3.3-70b-instruct:free",
-        "openrouter/free"
+        free_target_models = [
+        "google/gemini-2.0-flash-exp:free",
+        "deepseek/deepseek-r1:free",
+        "meta-llama/llama-3.3-70b-instruct:free"
     ]
+
 
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
