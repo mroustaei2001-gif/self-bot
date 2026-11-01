@@ -677,32 +677,113 @@ async def pm_delete_logger(event):
                 pass
 
 
-async def log_ban(chat_id, admin_id, chat_title=None):
-    if not BAN_LOG: return
-    key = str(chat_id); now = time.time()
-    if now - BAN_DEDUPE.get(key, 0) < 120: return
-    BAN_DEDUPE[key] = now
-    try: admin = await client.get_entity(admin_id) if admin_id else None
-    except Exception: admin = None
+async def get_group_owner(cid):
+    """استخراج زنده و مستقیم اطلاعات سازنده گروه"""
     try:
-        if chat_title is None:
+        ent = await client.get_entity(cid)
+        owner_id = None
+        if getattr(ent, 'broadcast', False) or getattr(ent, 'megagroup', False) or getattr(ent, 'channel', False):
+            res = await client(GetParticipantsRequest(ent, ChannelParticipantsAdmins(), 0, 100, 0))
+            for p in res.participants:
+                if isinstance(p, ChannelParticipantCreator):
+                    owner_id = p.user_id
+                    break
+        else:
+            full = await client(GetFullChatRequest(cid))
+            for p in full.full_chat.participants.participants:
+                if isinstance(p, ChatParticipantCreator):
+                    owner_id = p.user_id
+                    break
+        
+        if owner_id:
+            u = await client.get_entity(owner_id)
+            fn = getattr(u, 'first_name', '') or ''
+            ln = getattr(u, 'last_name', '') or ''
+            name = (fn + ' ' + ln).strip() or "بدون نام"
+            un = f"@{u.username}" if getattr(u, 'username', None) else "ندارد"
+            link = f"tg://openmessage?user_id={owner_id}"
+            return {
+                'id': owner_id,
+                'name': name,
+                'username': un,
+                'link': link
+            }
+    except Exception:
+        pass
+    return None
+
+async def log_ban(chat_id, admin_id, chat_title=None):
+    if not BAN_LOG:
+        return
+    key = str(chat_id)
+    now = time.time()
+    if now - BAN_DEDUPE.get(key, 0) < 120:
+        return
+    BAN_DEDUPE[key] = now
+
+    admin = None
+    if admin_id:
+        try:
+            admin = await client.get_entity(admin_id)
+        except Exception:
+            admin = None
+
+    if chat_title is None:
+        try:
             chat = await client.get_entity(int(chat_id))
             chat_title = getattr(chat, 'title', None) or getattr(chat, 'first_name', str(chat_id))
-    except Exception: chat_title = str(chat_id)
-    own = OWNERS.get(str(chat_id))
-    lines = [f'🚨 بن/حذف شدی در: {chat_title}']
+        except Exception:
+            chat_title = str(chat_id)
+
+    # دریافت اطلاعات مالک گروه
+    owner_info = await get_group_owner(chat_id)
+
+    lines = [f'🚨 **بن/حذف شدی در:** {chat_title}']
+
+    # بخش اطلاعات فرد بن‌کننده
     if admin:
-        fn = getattr(admin, 'first_name', '') or ''; ln = getattr(admin, 'last_name', '') or ''
-        lines.append(f'👤 بن‌کننده: {(fn+" "+ln).strip() or "بدون نام"}')
-        lines.append(f'🆔 ID: `{admin.id}`')
-        if getattr(admin, 'username', None): lines.append(f'🔗 @{admin.username}')
-    if own:
-        lines.append(f'👑 مالک: {own["owner_name"] or "بدون نام"}')
-        lines.append(f'🆔 ID: `{own["owner_id"]}`')
-        if own.get('owner_username'): lines.append(f'🔗 @{own["owner_username"]}')
-    lines.append(f'⏰ {fa_now()}')
-    try: await client.send_message('me', '\n'.join(lines), parse_mode='md')
-    except Exception: pass
+        fn = getattr(admin, 'first_name', '') or ''
+        ln = getattr(admin, 'last_name', '') or ''
+        admin_name = (fn + ' ' + ln).strip() or "بدون نام"
+        admin_un = f"@{admin.username}" if getattr(admin, 'username', None) else "ندارد"
+        admin_link = f"tg://openmessage?user_id={admin.id}"
+        
+        lines.append(f'👤 **بن‌کننده:** [{admin_name}]({admin_link})')
+        lines.append(f'🆔 **ID:** `{admin.id}`')
+        lines.append(f'🔗 **یوزرنیم:** {admin_un}')
+        lines.append(f'💬 [ارسال پیام مستقیم به بن‌کننده]({admin_link})')
+    elif admin_id:
+        admin_link = f"tg://openmessage?user_id={admin_id}"
+        lines.append(f'🆔 **ID بن‌کننده:** `{admin_id}`')
+        lines.append(f'💬 [ارسال پیام مستقیم به بن‌کننده]({admin_link})')
+    else:
+        lines.append('👤 **بن‌کننده:** نامشخص (توسط سیستم یا ربات)')
+
+    lines.append('—' * 15)
+
+    # بخش اطلاعات مالک گروه
+    if owner_info:
+        lines.append(f'👑 **مالک گروه:** [{owner_info["name"]}]({owner_info["link"]})')
+        lines.append(f'🆔 **ID مالک:** `{owner_info["id"]}`')
+        lines.append(f'🔗 **یوزرنیم:** {owner_info["username"]}')
+        lines.append(f'💬 [ارسال پیام مستقیم به مالک]({owner_info["link"]})')
+    else:
+        own = OWNERS.get(str(chat_id))
+        if own:
+            o_link = f"tg://openmessage?user_id={own['owner_id']}"
+            lines.append(f'👑 **مالک (ذخیره شده):** [{own["owner_name"]}]({o_link})')
+            lines.append(f'🆔 **ID مالک:** `{own["owner_id"]}`')
+            un_txt = f"@{own['owner_username']}" if own.get('owner_username') else "ندارد"
+            lines.append(f'🔗 **یوزرنیم:** {un_txt}')
+            lines.append(f'💬 [ارسال پیام مستقیم به مالک]({o_link})')
+
+    lines.append(f'⏰ `{fa_now()}`')
+
+    try:
+        await client.send_message('me', '\n'.join(lines), parse_mode='md', link_preview=False)
+    except Exception:
+        pass
+
 
 @client.on(events.Raw(types.UpdateChannelParticipant))
 async def raw_ban_detector(event):
