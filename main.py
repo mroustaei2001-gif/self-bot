@@ -75,17 +75,13 @@ RAW_FONTS = [
     {'d': '⁰¹²³⁴⁵⁶⁷⁸⁹', 'c': 'ː'},
     {'d': '₀₁₂₃₄₅₆₇₈₉', 'c': ':'},
     {'d': '𝟘𝟙𝟚𝟛𝟜𝟝𝟞𝟟𝟠𝟡', 'c': ':'},
-    {'d': '0𝟣𝟤𝟥𝟧𝟨𝟩𝟫', 'c': ':'},
     {'d': '𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗', 'c': ':'},
     {'d': '𝟶𝟷𝟸𝟹𝟺𝟻𝟼𝟽𝟾𝟿', 'c': ':'},
-    {'d': '①②③④⑤⑦⑧⑨', 'c': ':'},
     {'d': '0123456789', 'c': ':'},
     {'d': '۰۱۲۳۴۵۶۷۸۹', 'c': ':'},
     {'d': '٠١٢٣٤٥٦٧٨٩', 'c': ':'},
-    {'d': '０１۲۳۴۵۶۷۸۹', 'c': '：'},
-    {'d': '⓿❶❷❸❹❺❻❼❽❾', 'c': ':'},
     {'d': '𝟢𝟣𝟤𝟥𝟦𝟧𝟨𝟩𝟪𝟫', 'c': ':'},
-    {'d': '𝟱𝟲𝟳𝟴𝟵𝟬𝟭𝟮𝟯𝟰', 'c': ':'},
+    {'d': '𝟬𝟭𝟮𝟯𝟰𝟱𝟲𝟳𝟴𝟵', 'c': ':'},
     {'d': '➀➁➂➃➄➅➆➇➈➉', 'c': '·'},
     {'d': '⟦0⟧⟦1⟧⟦2⟧⟦3⟧⟦4⟧⟦5⟧⟦6⟧⟦7⟧⟦8⟧⟦9⟧', 'c': ':'},
     {'d': '🄋➀➁➂➃➄➅➆➇➈', 'c': ':'}
@@ -1105,6 +1101,58 @@ async def ghost(event):
     global GHOST_MODE
     GHOST_MODE = (event.pattern_match.group(1) == 'on')
     await event.edit(f'👻 روح: {"✅" if GHOST_MODE else "❌"}')
+async def click_loop():
+    while True:
+        try:
+            if CLICK_ON and MASTER_ON:
+                for key, item in list(CLICKS.items()):
+                    chat = item.get('chat')
+                    btn_text = item.get('btn')
+                    if not chat or not btn_text: continue
+                    try:
+                        async for msg in client.iter_messages(chat, limit=3):
+                            if msg.buttons:
+                                for row in msg.buttons:
+                                    for btn in row:
+                                        if btn_text in (btn.text or ''):
+                                            await btn.click()
+                                            break
+                    except Exception: pass
+                    await asyncio.sleep(item.get('interval', 3))
+        except Exception: pass
+        await asyncio.sleep(5)
+
+@client.on(events.NewMessage(pattern=r'^/click\s+(on|off)$', chats='me'))
+async def click_toggle(event):
+    global CLICK_ON
+    CLICK_ON = (event.pattern_match.group(1) == 'on')
+    await event.edit(f'🔘 کلیکر: {"روشن ✅" if CLICK_ON else "خاموش ❌"}')
+
+@client.on(events.NewMessage(pattern=r'^/click\s+add\s+(.+)$', chats='me'))
+async def click_add(event):
+    btn_text = event.pattern_match.group(1).strip()
+    cid = str(event.chat_id)
+    k = next_key(CLICKS)
+    CLICKS[k] = {'chat': cid, 'btn': btn_text, 'interval': 3}
+    save_clicks()
+    await event.edit(f'✅ کلیک خودکار روی «{btn_text}» تنظیم شد.')
+
+@client.on(events.NewMessage(pattern=r'^/click\s+del\s+(\S+)$', chats='me'))
+async def click_del(event):
+    k = event.pattern_match.group(1).strip()
+    if k in CLICKS:
+        del CLICKS[k]; save_clicks()
+        await event.edit(f'🗑️ کلیکر ردیف {k} حذف شد.')
+    else:
+        await event.edit('❌ ردیف یافت نشد.')
+
+@client.on(events.NewMessage(pattern=r'^/click\s+list$', chats='me'))
+async def click_list(event):
+    if not CLICKS: await event.edit('📭 هیچ کلیکری فعال نیست.'); return
+    lines = ['📋 لیست کلیکرها:']
+    for k, v in CLICKS.items():
+        lines.append(f"• `{k}`: دکمه «{v.get('btn')}» در چت `{v.get('chat')}`")
+    await event.edit('\n'.join(lines), parse_mode='md')
 
 @client.on(events.NewMessage(pattern=r'^/help$', chats='me'))
 async def help_cmd(event):
@@ -1168,6 +1216,8 @@ async def main():
     asyncio.create_task(clock_loop())
     asyncio.create_task(auto_loop())
     asyncio.create_task(probe_loop())
+    asyncio.create_task(click_loop())
+
     if PRICE_ON: asyncio.create_task(price_loop())
     
     print(f'🚀 سلف‌بات {BOT_VERSION} آنلاین شد!', flush=True)
