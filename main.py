@@ -15,7 +15,7 @@ from telethon.tl.types import (
 )
 
 AI_AVAILABLE = True
-BOT_VERSION = '45-Complete'
+BOT_VERSION = '46-TargetClicker'
 API_ID = int(os.getenv('API_ID', '0'))
 API_HASH = os.getenv('API_HASH', '')
 GEN = os.getenv('GEN', '0') == '1'
@@ -48,8 +48,6 @@ PM_CACHE = {}
 WATCH = set()
 WATCH_PATH = '/data/watch.json'
 LAST_SEEN = {}
-LAST_BTN = None
-LAST_BTN_TEXTS = []
 AUTO_ON = True
 AUTOS = {}
 AUTOS_PATH = '/data/autos.json'
@@ -59,8 +57,6 @@ CLICKS_PATH = '/data/clicks.json'
 OWNERS = {}
 OWNERS_PATH = '/data/owners.json'
 TRIED_OWNERS = set()
-SPAM_LOCK = False
-COMMON_BUSY = False
 AI_LOCK = {}
 PRICE_ON = os.getenv('PRICE_ON', '1') == '1'
 PRICE_INTERVAL = int(os.getenv('PRICE_INTERVAL', '600'))
@@ -102,10 +98,7 @@ def load_custom_fonts():
     global CUSTOM_FONTS
     try:
         with open(CUSTOM_FONTS_PATH, 'r', encoding='utf-8') as f: loaded = json.load(f)
-        valid = [x for x in loaded if validate_font(x)]
-        if len(valid) != len(loaded):
-            CUSTOM_FONTS = valid; save_custom_fonts()
-        else: CUSTOM_FONTS = valid
+        CUSTOM_FONTS = [x for x in loaded if validate_font(x)]
     except Exception: CUSTOM_FONTS = []
 
 def save_custom_fonts():
@@ -125,15 +118,6 @@ def save_names():
     try:
         with open(NAMES_PATH, 'w', encoding='utf-8') as f: json.dump(NAMES, f, ensure_ascii=False)
     except Exception: pass
-
-def visual_len(name):
-    name = name or ''
-    count = 0
-    for ch in name:
-        cat = unicodedata.category(ch)
-        if cat in ('Zl', 'Zp') or cat[0] in ('M', 'C'): continue
-        count += 1
-    return count
 
 def safe_name_part(name):
     name = name or ''
@@ -188,6 +172,7 @@ async def fetch_text(url, timeout=20):
     return await asyncio.get_running_loop().run_in_executor(None, _get)
 
 def _clean_btn_text(txt: str) -> str:
+    """حذف کامل ایموجی‌ها، علامت‌ها، اعراب، نیم‌فاصله و یکدست‌سازی حروف فارسی و عربی"""
     if not txt: return ""
     txt = str(txt)
     char_map = {
@@ -197,7 +182,9 @@ def _clean_btn_text(txt: str) -> str:
     }
     for k, v in char_map.items():
         txt = txt.replace(k, v)
+    # حذف نیم‌فاصله و اعراب
     txt = re.sub(r'[\u200c\u200b\u200d\u200e\u200f\u064b-\u065f]', '', txt)
+    # حذف کامل تمام ایموجی‌ها، نمادها، علامت‌های نگارشی و خط تیره‌ها
     txt = re.sub(r'[^\w\s]', ' ', txt)
     return ' '.join(txt.split()).strip().lower()
 
@@ -217,10 +204,7 @@ def _gemini_sync(question, timeout=30):
     cleaned_key = (GEMINI_API_KEY or '').strip().replace('\n', '').replace('\r', '')
     if not cleaned_key: return '❌ کلید API در تنظیمات ریل‌وی تنظیم نشده است.'
     web_context = _web_search(question)
-    system_prompt = (
-        "شما یک دستیار هوش مصنوعی بسیار دقیق، روان و مسلط به زبان فارسی هستید. "
-        "پاسخ را فقط و فقط به زبان فارسی سلیس و استاندارد بنویسید."
-    )
+    system_prompt = "شما یک دستیار هوش مصنوعی بسیار دقیق، روان و مسلط به زبان فارسی هستید. پاسخ را فقط و فقط به زبان فارسی سلیس بنویسید."
     if web_context: system_prompt += f"\n\nاطلاعات استخراج شده از اینترنت:\n{web_context}"
 
     free_target_models = [
@@ -257,7 +241,7 @@ def _fa_to_en(txt):
     return (txt or '').translate(str.maketrans('۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩', '01234567890123456789'))
 
 def parse_price_text(txt):
-    res = {'usd': None, 'btc_usd': None, 'gold_gram': None, 'gold_oz': None}
+    res = {'usd': None, 'btc_usd': None, 'gold_gram': None}
     txt = _fa_to_en(txt)
     m = re.search(r'دلار[^0-9]{0,80}?([0-9][0-9,\.]{3,})', txt)
     if m:
@@ -275,7 +259,7 @@ def parse_price_text(txt):
     return res
 
 async def get_channel_prices():
-    res = {'usd': None, 'btc_usd': None, 'gold_gram': None, 'gold_oz': None}
+    res = {'usd': None, 'btc_usd': None, 'gold_gram': None}
     try:
         async for mg in client.iter_messages(PRICE_CHANNEL, limit=10):
             r = parse_price_text(mg.text)
@@ -479,15 +463,35 @@ async def auto_loop():
         except Exception: pass
         await asyncio.sleep(10)
 
+def get_clean_active_targets(chat_id_to_check=None):
+    """استخراج تارگت‌های معتبر کلیکر بدون مقادیر خالی"""
+    targets = []
+    if isinstance(CLICKS, dict):
+        for v in CLICKS.values():
+            if isinstance(v, dict):
+                chat = v.get('chat')
+                if chat_id_to_check is not None and chat:
+                    try:
+                        if str(chat).strip() != str(chat_id_to_check).strip():
+                            continue
+                    except Exception: pass
+                btn_word = v.get('btn')
+                if btn_word:
+                    cleaned = _clean_btn_text(btn_word)
+                    if len(cleaned) >= 2: # حداقل ۲ حرف باشد تا تصادفی نخورد
+                        targets.append(cleaned)
+    return targets
+
 async def click_loop():
     while True:
         try:
-            if CLICK_ON and MASTER_ON:
+            if CLICK_ON and MASTER_ON and CLICKS:
                 for key, item in list(CLICKS.items()):
                     chat = item.get('chat')
                     btn_target = item.get('btn')
                     if not chat or not btn_target: continue
                     target_clean = _clean_btn_text(btn_target)
+                    if not target_clean or len(target_clean) < 2: continue
                     try:
                         target_peer = int(chat) if str(chat).lstrip('-').isdigit() else chat
                         async for msg in client.iter_messages(target_peer, limit=4):
@@ -496,7 +500,8 @@ async def click_loop():
                                     for btn in row:
                                         raw_text = getattr(btn, 'text', '') or ''
                                         cleaned = _clean_btn_text(raw_text)
-                                        if (target_clean and (target_clean in cleaned)) or ('پیشی' in cleaned and 'بخوره' in cleaned):
+                                        # تطابق دقیق متن هدف با متن داخل دکمه
+                                        if cleaned and (target_clean in cleaned):
                                             try:
                                                 await btn.click()
                                                 break
@@ -514,15 +519,22 @@ async def instant_clicker_handler(event):
     buttons = getattr(event, 'buttons', None)
     if not buttons: return
 
-    targets = [_clean_btn_text(v.get('btn')) for v in CLICKS.values() if isinstance(v, dict) and v.get('btn')]
-    targets.append(_clean_btn_text("بده پیشی بخوره"))
+    # دریافت تارگت‌های مربوط به همین چت (یا تارگت‌های کلی)
+    targets = get_clean_active_targets(event.chat_id)
+    if not targets:
+        return
 
     try:
         for row_idx, row in enumerate(buttons):
             for col_idx, btn in enumerate(row):
                 raw_text = getattr(btn, 'text', '') or ''
                 cleaned = _clean_btn_text(raw_text)
-                if any(t and (t in cleaned) for t in targets) or ('پیشی' in cleaned and 'بخوره' in cleaned):
+                if not cleaned: continue
+
+                # فقط در صورتی کلیک کن که متن تنظیم شده واقعاً در متن دکمه باشد
+                matched = any(t in cleaned for t in targets)
+
+                if matched:
                     try: await btn.click(); return
                     except Exception:
                         try: await event.click(row_idx, col_idx); return
@@ -966,7 +978,7 @@ async def click_add(event):
     k = next_key(CLICKS)
     CLICKS[k] = {'chat': cid, 'btn': btn_text, 'interval': 3}
     save_clicks()
-    await event.edit(f'✅ کلیک خودکار روی کلمه «{btn_text}» تنظیم شد.')
+    await event.edit(f'✅ کلیک خودکار فقط روی کلمه «{btn_text}» تنظیم شد.')
 
 @client.on(events.NewMessage(pattern=r'^[./]click\s+del\s+(\S+)$', outgoing=True))
 async def click_del(event):
@@ -981,7 +993,7 @@ async def click_list(event):
     if not CLICKS: await event.edit('📭 هیچ کلیکری فعال نیست.'); return
     lines = ['📋 **لیست کلیکرها:**']
     for k, v in CLICKS.items():
-        lines.append(f"• `{k}`: دکمه «{v.get('btn')}» در چت `{v.get('chat')}`")
+        lines.append(f"• `{k}`: فقط کلمه «{v.get('btn')}» در چت `{v.get('chat')}`")
     await event.edit('\n'.join(lines), parse_mode='md')
 
 @client.on(events.NewMessage(pattern=r'^[./]ping$', outgoing=True))
@@ -1067,7 +1079,7 @@ async def help_cmd(event):
    ▫️ `/auto list` | `/auto del <شماره>`
 🎯 **کلیکر هوشمند:**
    ▫️ `/click on|off`
-   ▫️ `/click add <متن یا تکه کلمه>`
+   ▫️ `/click add <متن دقیق دکمه>`
    ▫️ `/click list` | `/click del <شماره>`
 📩 **لاگرها:**
    ▫️ `/pmlog on|off` (ادیت و حذف پی‌وی)
