@@ -381,13 +381,18 @@ async def build_bio():
         if not gold_oz: gold_oz = await get_gold_oz_usd()
         if gold_oz and usd_toman: gold_gram = (gold_oz / 31.1035) * 0.75 * usd_toman
     
-    parts = []
-    if usd_toman: parts.append(f'💵 دلار: {slash_fmt(usd_toman)}')
-    if btc_usd: parts.append(f'🪙 بیت: ${int(round(btc_usd)):,}')
-    if gold_gram: parts.append(f'🪙 طلا: {slash_fmt(gold_gram)}')
-    
-    bio = ' | '.join(parts)
-    return bio if bio else None
+        parts = []
+    if usd_toman: parts.append(f'💵 دلار: {usd_toman:,}')
+    if btc_usd: parts.append(f'🪙 بیت: ${int(btc_usd):,}')
+    if gold_gram: parts.append(f'🟡 طلا: {gold_gram:,}')
+
+        bio = ' | '.join(parts)
+            if bio:
+            bio = f"{bio}\nchannel: @remixiyu"[:70]
+            else:
+            bio = "channel: @remixiyu"
+            return bio
+
 
 async def update_bio(new_bio):
     global last_bio
