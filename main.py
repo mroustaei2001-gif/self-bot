@@ -394,20 +394,26 @@ async def build_bio():
     if not gold_gram:
         if not gold_oz: gold_oz = await get_gold_oz_usd()
         if gold_oz and usd_toman: gold_gram = (gold_oz / 31.1035) * 0.75 * usd_toman
-    
+
     parts = []
     if usd_toman: parts.append(f'💵 {slash_fmt(usd_toman)}')
     if btc_usd: parts.append(f'🪙 ${int(round(btc_usd)):,}')
-    if gold_gram: parts.append(f'🪙 {slash_fmt(gold_gram)}')
-    
+    if gold_gram: parts.append(f'🟡 {slash_fmt(gold_gram)}')
+
     channel_tag = "chanel|@remixiyu"
     if parts:
-        price_line = ' | '.join(parts)
-        full_bio = f"{price_line}\n{channel_tag}"
+        bio = f"{' | '.join(parts)}\n{channel_tag}"
     else:
-        full_bio = channel_tag
+        bio = channel_tag
 
-    return full_bio[:70]
+    # بررسی سقف ۷۰ کاراکتر بدون قیچی شدن آیدی کانال
+    if len(bio) > 70:
+        short_parts = []
+        if btc_usd: short_parts.append(f'🪙 ${int(round(btc_usd)):,}')
+        if gold_gram: short_parts.append(f'🟡 {slash_fmt(gold_gram)}')
+        bio = f"{' | '.join(short_parts)}\n{channel_tag}"
+
+    return bio[:70]
 
 async def update_bio(new_bio):
     global last_bio
@@ -701,6 +707,7 @@ async def pm_delete_logger(event):
                 pass
 
 async def get_group_owner(cid):
+    """استخراج زنده و مستقیم اطلاعات سازنده گروه یا کانال"""
     try:
         ent = await client.get_entity(cid)
         owner_id = None
@@ -732,6 +739,16 @@ async def get_group_owner(cid):
             }
     except Exception:
         pass
+
+    # فال‌بک از دیتابیس کش شده مالکان
+    own = OWNERS.get(str(cid))
+    if own:
+        return {
+            'id': own.get('owner_id'),
+            'name': own.get('owner_name') or "مالک ذخیره شده",
+            'username': f"@{own.get('owner_username')}" if own.get('owner_username') else "ندارد",
+            'link': f"tg://openmessage?user_id={own.get('owner_id')}"
+        }
     return None
 
 async def log_ban(chat_id, admin_id, chat_title=None):
@@ -739,6 +756,7 @@ async def log_ban(chat_id, admin_id, chat_title=None):
         return
     key = str(chat_id)
     now = time.time()
+    # جلوگیری از ارسال لاگ تکراری در بازه ۱۲۰ ثانیه
     if now - BAN_DEDUPE.get(key, 0) < 120:
         return
     BAN_DEDUPE[key] = now
@@ -759,85 +777,88 @@ async def log_ban(chat_id, admin_id, chat_title=None):
 
     owner_info = await get_group_owner(chat_id)
 
-    lines = [f'🚨 **بن/حذف شدی در:** {chat_title}']
+    lines = [f'🚨 **گزارش اخراج/مسدود شدن از چت**\n📌 **نام گروه:** `{chat_title}`']
 
+    # بررسی و استخراج شیوه ارتباط با بن‌کننده
     if admin:
         fn = getattr(admin, 'first_name', '') or ''
         ln = getattr(admin, 'last_name', '') or ''
-        admin_name = (fn + ' ' + ln).strip() or "بدون نام"
+        admin_name = (fn + ' ' + ln).strip() or getattr(admin, 'title', '') or "کاربر"
         admin_un = f"@{admin.username}" if getattr(admin, 'username', None) else "ندارد"
-        admin_link = f"tg://openmessage?user_id={admin.id}"
+        admin_link = f"tg://user?id={admin.id}"
         
         lines.append(f'👤 **بن‌کننده:** [{admin_name}]({admin_link})')
-        lines.append(f'🆔 **ID:** `{admin.id}`')
+        lines.append(f'🆔 **شناسه (ID):** `{admin.id}`')
         lines.append(f'🔗 **یوزرنیم:** {admin_un}')
-        lines.append(f'💬 [ارسال پیام مستقیم به بن‌کننده]({admin_link})')
+        lines.append(f'💬 [کلیک جهت ارسال پیام به بن‌کننده]({admin_link})')
     elif admin_id:
-        admin_link = f"tg://openmessage?user_id={admin_id}"
-        lines.append(f'🆔 **ID بن‌کننده:** `{admin_id}`')
-        lines.append(f'💬 [ارسال پیام مستقیم به بن‌کننده]({admin_link})')
+        admin_link = f"tg://user?id={admin_id}"
+        lines.append(f'👤 **بن‌کننده:** کاربر با شناسه `{admin_id}`')
+        lines.append(f'💬 [تلاش برای باز کردن چت با بن‌کننده]({admin_link})')
     else:
-        lines.append('👤 **بن‌کننده:** نامشخص (توسط سیستم یا ربات)')
+        lines.append('👤 **بن‌کننده:** نامشخص (ربات مدیریت گروه یا حالت ادمین ناشناس)')
 
-    lines.append('—' * 15)
+    lines.append('—' * 20)
 
+    # اطلاعات مالک گروه جهت اعتراض یا ارتباط
     if owner_info:
         lines.append(f'👑 **مالک گروه:** [{owner_info["name"]}]({owner_info["link"]})')
-        lines.append(f'🆔 **ID مالک:** `{owner_info["id"]}`')
-        lines.append(f'🔗 **یوزرنیم:** {owner_info["username"]}')
-        lines.append(f'💬 [ارسال پیام مستقیم به مالک]({owner_info["link"]})')
+        lines.append(f'🆔 **شناسه مالک:** `{owner_info["id"]}`')
+        lines.append(f'🔗 **یوزرنیم مالک:** {owner_info["username"]}')
+        lines.append(f'💬 [کلیک جهت ارسال پیام به مالک گروه]({owner_info["link"]})')
     else:
-        own = OWNERS.get(str(chat_id))
-        if own:
-            o_link = f"tg://openmessage?user_id={own['owner_id']}"
-            lines.append(f'👑 **مالک (ذخیره شده):** [{own["owner_name"]}]({o_link})')
-            lines.append(f'🆔 **ID مالک:** `{own["owner_id"]}`')
-            un_txt = f"@{own['owner_username']}" if own.get('owner_username') else "ندارد"
-            lines.append(f'🔗 **یوزرنیم:** {un_txt}')
-            lines.append(f'💬 [ارسال پیام مستقیم به مالک]({o_link})')
+        lines.append('👑 **مالک گروه:** اطلاعات مالک در دسترس نبود (چت خصوصی/محدودیت دسترسی)')
 
-    lines.append(f'⏰ `{fa_now()}`')
+    lines.append(f'⏰ **زمان وقوع:** `{fa_now()}`')
 
     try:
         await client.send_message('me', '\n'.join(lines), parse_mode='md', link_preview=False)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[BanLog Send Error] {e}", flush=True)
 
+# ۱. تشخیص بن در سوپرگروه‌ها و کانال‌ها
 @client.on(events.Raw(types.UpdateChannelParticipant))
 async def raw_ban_detector(event):
-    if ME_ID is None or not MASTER_ON or not BAN_LOG:
+    if not BAN_LOG or not MASTER_ON or ME_ID is None:
         return
     try:
-        if event.user_id != ME_ID:
+        uid = getattr(event, 'user_id', None)
+        if uid != ME_ID:
             return
-        np = event.new_participant
-        if isinstance(np, (types.ChannelParticipantBanned, types.ChannelParticipantLeft)):
-            cid = get_peer_id(types.PeerChannel(event.channel_id))
-            actor = getattr(event, 'actor_id', None)
-            await log_ban(cid, actor, None)
-    except Exception:
-        pass
 
+        new_p = getattr(event, 'new_participant', None)
+        if isinstance(new_p, (types.ChannelParticipantBanned, types.ChannelParticipantLeft)):
+            cid = get_peer_id(types.PeerChannel(event.channel_id))
+            actor_id = getattr(event, 'actor_id', None)
+            await log_ban(cid, actor_id, None)
+    except Exception as e:
+        print(f"[Supergroup Ban Error] {e}", flush=True)
+
+# ۲. تشخیص بن در گروه‌های معمولی
 @client.on(events.ChatAction())
 async def ban_detector(event):
-    if ME_ID is None or not MASTER_ON or not BAN_LOG:
+    if not BAN_LOG or not MASTER_ON or ME_ID is None:
         return
     try:
         if event.user_kicked or event.user_left:
-            ids = getattr(event, 'user_id', None) or []
-            if isinstance(ids, int):
-                ids = [ids]
-            if ME_ID in ids:
+            kicked = []
+            if event.user_id:
+                kicked.append(event.user_id)
+            if getattr(event, 'user_ids', None):
+                kicked.extend(event.user_ids)
+
+            if ME_ID in kicked:
                 admin_id = None
                 try:
                     am = event.action_message
-                    if am is not None and getattr(am, 'from_id', None) is not None:
+                    if am and getattr(am, 'from_id', None):
                         admin_id = getattr(am.from_id, 'user_id', None)
                 except Exception:
-                    admin_id = None
+                    pass
                 await log_ban(event.chat_id, admin_id, None)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[Group Ban Error] {e}", flush=True)
+
 
 RESERVED_COMMANDS = {'/rp', '/m', '/mwho', '/bot', '/common', '/name', '/banlog', '/pmlog', '/font', '/reveal', '/spamcheck', '/ttl', '/click', '/dl', '/dlast', '/getmsg', '/auto', '/status', '/clock', '/price', '/ping', '/save', '/del', '/ghost', '/help', '/ask', '/type', '/hack', '/hearts', '/moon', '/timer', '/userinfo', '/kang'}
 
@@ -956,20 +977,51 @@ async def type_cmd(event):
     text = event.pattern_match.group(1)
     if not text:
         rmsg = await event.get_reply_message()
-        if rmsg and rmsg.text: text = rmsg.text
+        if rmsg and rmsg.text:
+            text = rmsg.text
     if not text:
-        await event.edit('❌ متنی برای تایپ ننوشتید.'); return
-    typing_symbol = '▒'
-    current_text = ''
-    for char in text:
-        current_text += char
-        try:
-            await event.edit(current_text + typing_symbol)
+        await event.edit('❌ متنی برای تایپ مشخص نکردید.')
+        return
+
+    # پیام اولیه را می‌گذارد و در انتظار سین شدن می‌ماند
+    msg = await event.edit('▒')
+    PENDING_READ_ANIMATIONS[msg.id] = {
+        'chat_id': event.chat_id,
+        'type': 'typewriter',
+        'text': text
+    }
+
+@client.on(events.MessageRead(inbox=False))
+async def on_message_read(event):
+    read_max_id = event.max_id
+    chat_id = event.chat_id
+
+    to_run = []
+    for msg_id, data in list(PENDING_READ_ANIMATIONS.items()):
+        if data['chat_id'] == chat_id and msg_id <= read_max_id:
+            to_run.append((msg_id, data))
+            del PENDING_READ_ANIMATIONS[msg_id]
+
+    for msg_id, data in to_run:
+        if data.get('type') == 'typewriter':
+            asyncio.create_task(run_typewriter_animation(chat_id, msg_id, data['text']))
+        else:
+            asyncio.create_task(run_fun_animation(chat_id, msg_id, data['frames']))
+
+async def run_typewriter_animation(chat_id, message_id, text):
+    current = ''
+    try:
+        for ch in text:
+            current += ch
+            await client.edit_message(chat_id, message_id, current + '▒')
             await asyncio.sleep(0.08)
+        await client.edit_message(chat_id, message_id, text)
+    except Exception:
+        try:
+            await client.edit_message(chat_id, message_id, text)
         except Exception:
-            await asyncio.sleep(0.2)
-    try: await event.edit(text)
-    except Exception: pass
+            pass
+
 
 @client.on(events.NewMessage(pattern=r'^[./]hack$', outgoing=True))
 async def hack_cmd(event):
@@ -1228,6 +1280,35 @@ async def status_cmd(event):
     )
     await event.edit(text)
 
+# --- دستورات کامل مدیریت نام‌های ساعت ---
+@client.on(events.NewMessage(pattern=r'^[./]name\s+add\s+(.+)$', outgoing=True))
+async def name_add(event):
+    new_name = event.pattern_match.group(1).strip()
+    if new_name:
+        NAMES.append(new_name)
+        save_names()
+        await event.edit(f'✅ نام «{new_name}» به لیست چرخش اضافه شد.\nتعداد کل: {len(NAMES)}')
+
+@client.on(events.NewMessage(pattern=r'^[./]name\s+del\s+(\d+)$', outgoing=True))
+async def name_del(event):
+    idx = int(event.pattern_match.group(1)) - 1
+    if 0 <= idx < len(NAMES):
+        removed = NAMES.pop(idx)
+        save_names()
+        await event.edit(f'🗑️ نام «{removed}» حذف شد.')
+    else:
+        await event.edit('❌ شماره ردیف نامعتبر است.')
+
+@client.on(events.NewMessage(pattern=r'^[./]name\s+list$', outgoing=True))
+async def name_list(event):
+    if not NAMES:
+        await event.edit('📭 هیچ نامی ثبت نشده است.')
+        return
+    lines = ['📋 **لیست نام‌های ساعت:**']
+    for i, n in enumerate(NAMES, 1):
+        lines.append(f"• `{i}`: {n}")
+    await event.edit('\n'.join(lines), parse_mode='md')
+
 @client.on(events.NewMessage(pattern=r'^[./]clock\s+(on|off)$', chats='me'))
 async def clock_cmd(event):
     global CLOCK_ON, BASE_LAST
@@ -1404,13 +1485,13 @@ async def click_list(event):
         lines.append(f"• `{k}`: فقط کلمه «{v.get('btn')}» در چت `{v.get('chat')}`")
     await event.edit('\n'.join(lines), parse_mode='md')
 
-@client.on(events.NewMessage(pattern=r'^[./]auto\s+(on|off)$', chats='me'))
+@client.on(events.NewMessage(pattern=r'^[./]auto\s+(on|off)$', outgoing=True))
 async def auto_toggle(event):
     global AUTO_ON
     AUTO_ON = (event.pattern_match.group(1) == 'on')
     await event.edit(f'⚡ ارسال خودکار (Auto): {"روشن ✅" if AUTO_ON else "خاموش ❌"}')
 
-@client.on(events.NewMessage(pattern=r'^[./]auto\s+add\s+(\d+)\s+(.+)$', chats='me'))
+@client.on(events.NewMessage(pattern=r'^[./]auto\s+add\s+(\d+)\s+([\s\S]+)$', outgoing=True))
 async def auto_add(event):
     interval = int(event.pattern_match.group(1))
     text = event.pattern_match.group(2).strip()
@@ -1418,24 +1499,28 @@ async def auto_add(event):
     k = next_key(AUTOS)
     AUTOS[k] = {'chat': cid, 'word': text, 'interval': interval, 'last': 0}
     save_autos()
-    await event.edit(f'✅ ارسال خودکار هر `{interval}` ثانیه برای متن زیر تنظیم شد:\n«{text}»', parse_mode='md')
+    await event.edit(f'✅ ارسال خودکار ردیف `{k}` هر `{interval}` ثانیه فعال شد:\n«{text}»', parse_mode='md')
 
-@client.on(events.NewMessage(pattern=r'^[./]auto\s+del\s+(\S+)$', chats='me'))
+@client.on(events.NewMessage(pattern=r'^[./]auto\s+del\s+(\S+)$', outgoing=True))
 async def auto_del(event):
     k = event.pattern_match.group(1).strip()
     if k in AUTOS:
-        del AUTOS[k]; save_autos()
+        del AUTOS[k]
+        save_autos()
         await event.edit(f'🗑️ ارسال خودکار ردیف {k} حذف شد.')
     else:
         await event.edit('❌ ردیف یافت نشد.')
 
-@client.on(events.NewMessage(pattern=r'^[./]auto\s+list$', chats='me'))
+@client.on(events.NewMessage(pattern=r'^[./]auto\s+list$', outgoing=True))
 async def auto_list(event):
-    if not AUTOS: await event.edit('📭 هیچ پیام خودکاری تنظیم نشده است.'); return
-    lines = ['📋 **لیست ارسال خودکار:**']
+    if not AUTOS:
+        await event.edit('📭 هیچ پیام خودکاری تنظیم نشده است.')
+        return
+    lines = ['📋 **لیست ارسال‌های خودکار:**']
     for k, v in AUTOS.items():
         lines.append(f"• `{k}`: هر `{v.get('interval')}` ثانیه در چت `{v.get('chat')}` ⇦ «{v.get('word')}»")
     await event.edit('\n'.join(lines), parse_mode='md')
+
 
 @client.on(events.NewMessage(pattern=r'^[./]banlog\s+(on|off)$', chats='me'))
 async def banlog_toggle(event):
