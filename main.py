@@ -971,25 +971,62 @@ async def hack_cmd(event):
             await asyncio.sleep(0.9)
         except Exception: pass
 
-@client.on(events.NewMessage(pattern=r'^/hearts$', outgoing=True))
-async def hearts_cmd(event):
-    hearts = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🤍", "🤎", "🖤", "💖"]
-    for h in hearts:
-        try:
-            await event.edit(h)
-            await asyncio.sleep(0.4)
-        except Exception: pass
-    try: await event.edit("❤️‍🔥")
-    except Exception: pass
+# دیکشنری نگهداری پیام‌های در انتظار سین
+PENDING_READ_ANIMATIONS = {}
 
-@client.on(events.NewMessage(pattern=r'^/moon$', outgoing=True))
+# دستور قلب (سین‌چک)
+@client.on(events.NewMessage(pattern=r'^\.hearts?$'))
+async def hearts_cmd(event):
+    if not event.out:
+        return
+    frames = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💖", "🥰"]
+    try:
+        msg = await event.edit(frames[0])
+        PENDING_READ_ANIMATIONS[msg.id] = {
+            'chat_id': event.chat_id,
+            'frames': frames
+        }
+    except Exception:
+        pass
+
+# دستور ماه (سین‌چک)
+@client.on(events.NewMessage(pattern=r'^\.moon$'))
 async def moon_cmd(event):
-    phases = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑", "✨ Good Night ✨"]
-    for p in phases:
-        try:
-            await event.edit(p)
+    if not event.out:
+        return
+    frames = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]
+    try:
+        msg = await event.edit(frames[0])
+        PENDING_READ_ANIMATIONS[msg.id] = {
+            'chat_id': event.chat_id,
+            'frames': frames
+        }
+    except Exception:
+        pass
+
+# تشخیص سین شدن پیام توسط مخاطب و اجرای انیمیشن
+@client.on(events.MessageRead(inbox=False))
+async def on_message_read(event):
+    read_max_id = event.max_id
+    chat_id = event.chat_id
+
+    to_animate = []
+    for msg_id, data in list(PENDING_READ_ANIMATIONS.items()):
+        if data['chat_id'] == chat_id and msg_id <= read_max_id:
+            to_animate.append((msg_id, data['frames']))
+            del PENDING_READ_ANIMATIONS[msg_id]
+
+    for msg_id, frames in to_animate:
+        asyncio.create_task(run_fun_animation(chat_id, msg_id, frames))
+
+async def run_fun_animation(chat_id, message_id, frames):
+    try:
+        for f in frames[1:]:
             await asyncio.sleep(0.4)
-        except Exception: pass
+            await client.edit_message(chat_id, message_id, f)
+    except Exception:
+        pass
+
 
 @client.on(events.NewMessage(pattern=r'^/timer\s+(\d+)$', outgoing=True))
 async def timer_cmd(event):
