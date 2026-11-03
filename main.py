@@ -400,13 +400,13 @@ async def build_bio():
     if btc_usd: parts.append(f'🪙 ${int(round(btc_usd)):,}')
     if gold_gram: parts.append(f'🟡 {slash_fmt(gold_gram)}')
 
-    channel_tag = "chanel|@remixiyu"
+    channel_tag = "chanel: @remixiyu"
     if parts:
         bio = f"{' | '.join(parts)}\n{channel_tag}"
     else:
         bio = channel_tag
 
-    # بررسی سقف ۷۰ کاراکتر بدون قیچی شدن آیدی کانال
+    # رعایت سقف ۷۰ کاراکتر بدون قیچی شدن آیدی
     if len(bio) > 70:
         short_parts = []
         if btc_usd: short_parts.append(f'🪙 ${int(round(btc_usd)):,}')
@@ -414,6 +414,7 @@ async def build_bio():
         bio = f"{' | '.join(short_parts)}\n{channel_tag}"
 
     return bio[:70]
+
 
 async def update_bio(new_bio):
     global last_bio
@@ -892,15 +893,15 @@ async def stealth_mention_handler(event):
                 target_user = await event.client.get_entity(reply_obj.sender_id)
             except Exception:
                 pass
+        elif text.startswith('/') and not any(text.startswith(cmd) for cmd in ['/ask', '/ping', '/type', '/moon', '/hearts', '/heart', '/timer', '/userinfo', '/kang', '/click', '/auto', '/name', '/price', '/clock', '/status']) and event.is_reply:
+            clean_msg = text.lstrip('/').strip()
+            reply_obj = await event.get_reply_message()
+            if reply_obj and reply_obj.sender_id:
+                try:
+                    target_user = await event.client.get_entity(reply_obj.sender_id)
+                except Exception:
+                    pass
 
-    elif text.startswith('/') and not any(text.startswith(cmd) for cmd in ['/ask', '/ping', '/type', '/moon', '/hearts', '/heart', '/timer', '/userinfo', '/kang', '/click', '/auto', '/price', '/clock', '/status']) and event.is_reply:
-        clean_msg = text.lstrip('/').strip()
-        reply_obj = await event.get_reply_message()
-        if reply_obj and reply_obj.sender_id:
-            try:
-                target_user = await event.client.get_entity(reply_obj.sender_id)
-            except Exception:
-                pass
 
     elif text.startswith('+ ') or text.startswith('++'):
         clean_msg = text.lstrip('+').strip()
@@ -1284,10 +1285,14 @@ async def status_cmd(event):
 @client.on(events.NewMessage(pattern=r'^[./]name\s+add\s+(.+)$', outgoing=True))
 async def name_add(event):
     new_name = event.pattern_match.group(1).strip()
+    # اگر اسلش اضافی اول یا آخر گذاشته شده بود حذف کند
+    new_name = new_name.strip('/')
     if new_name:
         NAMES.append(new_name)
         save_names()
-        await event.edit(f'✅ نام «{new_name}» به لیست چرخش اضافه شد.\nتعداد کل: {len(NAMES)}')
+        await event.edit(f'✅ نام «{new_name}» به چرخش ساعت اضافه شد.\nتعداد نام‌ها: {len(NAMES)}')
+    else:
+        await event.edit('❌ نام نمی‌تواند خالی باشد.')
 
 @client.on(events.NewMessage(pattern=r'^[./]name\s+del\s+(\d+)$', outgoing=True))
 async def name_del(event):
@@ -1488,18 +1493,33 @@ async def click_list(event):
 @client.on(events.NewMessage(pattern=r'^[./]auto\s+(on|off)$', outgoing=True))
 async def auto_toggle(event):
     global AUTO_ON
-    AUTO_ON = (event.pattern_match.group(1) == 'on')
+    AUTO_ON = (event.pattern_match.group(1).lower() == 'on')
     await event.edit(f'⚡ ارسال خودکار (Auto): {"روشن ✅" if AUTO_ON else "خاموش ❌"}')
 
-@client.on(events.NewMessage(pattern=r'^[./]auto\s+add\s+(\d+)\s+([\s\S]+)$', outgoing=True))
+@client.on(events.NewMessage(pattern=r'^[./]auto\s+add\s+(.+)$', outgoing=True))
 async def auto_add(event):
-    interval = int(event.pattern_match.group(1))
-    text = event.pattern_match.group(2).strip()
-    cid = str(event.chat_id)
+    raw_args = event.pattern_match.group(1).strip()
+    # بررسی حالت: /auto add <chat_id> <interval> <text>
+    match_with_chat = re.match(r'^([-\d]+)\s+(\d+)\s+([\s\S]+)$', raw_args)
+    # بررسی حالت: /auto add <interval> <text> (در همان چت)
+    match_current_chat = re.match(r'^(\d+)\s+([\s\S]+)$', raw_args)
+
+    if match_with_chat:
+        cid = match_with_chat.group(1)
+        interval = int(match_with_chat.group(2))
+        text = match_with_chat.group(3).strip()
+    elif match_current_chat:
+        cid = str(event.chat_id)
+        interval = int(match_current_chat.group(1))
+        text = match_current_chat.group(2).strip()
+    else:
+        await event.edit('❌ **فرمت دستور اشتباه است.**\nروش اول: `/auto add 5 سلام` (در همین چت)\nروش دوم: `/auto add -1004413564062 5 سلام`', parse_mode='md')
+        return
+
     k = next_key(AUTOS)
-    AUTOS[k] = {'chat': cid, 'word': text, 'interval': interval, 'last': 0}
+    AUTOS[k] = {'chat': str(cid), 'word': text, 'interval': interval, 'last': 0}
     save_autos()
-    await event.edit(f'✅ ارسال خودکار ردیف `{k}` هر `{interval}` ثانیه فعال شد:\n«{text}»', parse_mode='md')
+    await event.edit(f'✅ ارسال خودکار ردیف `{k}` تنظیم شد:\n📍 چت: `{cid}`\n⏰ هر: `{interval}` ثانیه\n💬 متن: «{text}»', parse_mode='md')
 
 @client.on(events.NewMessage(pattern=r'^[./]auto\s+del\s+(\S+)$', outgoing=True))
 async def auto_del(event):
@@ -1507,7 +1527,7 @@ async def auto_del(event):
     if k in AUTOS:
         del AUTOS[k]
         save_autos()
-        await event.edit(f'🗑️ ارسال خودکار ردیف {k} حذف شد.')
+        await event.edit(f'🗑️ ارسال خودکار ردیف `{k}` حذف شد.')
     else:
         await event.edit('❌ ردیف یافت نشد.')
 
