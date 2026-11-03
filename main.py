@@ -167,7 +167,6 @@ def small_time_with_font(font=None):
     now = datetime.now(tz)
     time_str = now.strftime('%H:%M')
     
-    # مپ دقیق و مرتب ارقام ۰ تا ۹ دایره‌ای
     circle_map = {
         '0': '⓪', '1': '①', '2': '②', '3': '③', '4': '④',
         '5': '⑤', '6': '⑥', '7': '⑦', '8': '⑧', '9': '⑨',
@@ -175,7 +174,6 @@ def small_time_with_font(font=None):
     }
     
     return ''.join(circle_map.get(ch, ch) for ch in time_str)
-
 
 def fa_now():
     tz = timezone(timedelta(hours=3, minutes=30))
@@ -222,7 +220,6 @@ def _gemini_sync(question, timeout=30):
     if web_context:
         system_prompt += f"\n\nاطلاعات استخراج شده از اینترنت:\n{web_context}"
 
-    # فهرست پایدارترین مدل‌های کاملاً رایگان با فال‌بک عمومی
     free_target_models = [
         "google/gemini-2.0-flash-lite-preview:free",
         "deepseek/deepseek-chat:free",
@@ -270,8 +267,6 @@ def _gemini_sync(question, timeout=30):
             continue
 
     return f'❌ خطا در ارتباط: {last_error}'
-
-
 
 async def ask_ai(question, timeout=40):
     try:
@@ -381,18 +376,17 @@ async def build_bio():
         if not gold_oz: gold_oz = await get_gold_oz_usd()
         if gold_oz and usd_toman: gold_gram = (gold_oz / 31.1035) * 0.75 * usd_toman
     
-        parts = []
+    parts = []
     if usd_toman: parts.append(f'💵 دلار: {usd_toman:,}')
     if btc_usd: parts.append(f'🪙 بیت: ${int(btc_usd):,}')
     if gold_gram: parts.append(f'🟡 طلا: {gold_gram:,}')
 
-        bio = ' | '.join(parts)
-            if bio:
-            bio = f"{bio}\nchannel: @remixiyu"[:70]
-            else:
-            bio = "channel: @remixiyu"
-            return bio
-
+    bio = ' | '.join(parts)
+    if bio:
+        bio = f"{bio}\nchannel: @remixiyu"[:70]
+    else:
+        bio = "channel: @remixiyu"
+    return bio
 
 async def update_bio(new_bio):
     global last_bio
@@ -628,7 +622,6 @@ async def pm_cache(event):
         return
     name = ((getattr(sender, 'first_name', '') or '') + ' ' + (getattr(sender, 'last_name', '') or '')).strip()
     
-    # ذخیره پیام با کلید شناسه پیام (message.id)
     PM_CACHE[event.id] = {
         'chat_id': event.chat_id,
         'sender_id': sender.id if sender else event.chat_id,
@@ -671,7 +664,6 @@ async def pm_delete_logger(event):
     if not PMLOG_ON or not MASTER_ON or ME_ID is None:
         return
     
-    # در تلثون deleted_ids حاوی لیست شناسه‌های پیام‌های پاک شده است
     for mid in event.deleted_ids:
         rec = PM_CACHE.pop(mid, None)
         if rec:
@@ -688,9 +680,7 @@ async def pm_delete_logger(event):
             except Exception:
                 pass
 
-
 async def get_group_owner(cid):
-    """استخراج زنده و مستقیم اطلاعات سازنده گروه"""
     try:
         ent = await client.get_entity(cid)
         owner_id = None
@@ -747,12 +737,10 @@ async def log_ban(chat_id, admin_id, chat_title=None):
         except Exception:
             chat_title = str(chat_id)
 
-    # دریافت اطلاعات مالک گروه
     owner_info = await get_group_owner(chat_id)
 
     lines = [f'🚨 **بن/حذف شدی در:** {chat_title}']
 
-    # بخش اطلاعات فرد بن‌کننده
     if admin:
         fn = getattr(admin, 'first_name', '') or ''
         ln = getattr(admin, 'last_name', '') or ''
@@ -773,7 +761,6 @@ async def log_ban(chat_id, admin_id, chat_title=None):
 
     lines.append('—' * 15)
 
-    # بخش اطلاعات مالک گروه
     if owner_info:
         lines.append(f'👑 **مالک گروه:** [{owner_info["name"]}]({owner_info["link"]})')
         lines.append(f'🆔 **ID مالک:** `{owner_info["id"]}`')
@@ -796,7 +783,6 @@ async def log_ban(chat_id, admin_id, chat_title=None):
     except Exception:
         pass
 
-
 @client.on(events.Raw(types.UpdateChannelParticipant))
 async def raw_ban_detector(event):
     if ME_ID is None or not MASTER_ON or not BAN_LOG:
@@ -805,7 +791,6 @@ async def raw_ban_detector(event):
         if event.user_id != ME_ID:
             return
         np = event.new_participant
-        # تشخیص بن یا اخراج در سوپرگروه/کانال
         if isinstance(np, (types.ChannelParticipantBanned, types.ChannelParticipantLeft)):
             cid = get_peer_id(types.PeerChannel(event.channel_id))
             actor = getattr(event, 'actor_id', None)
@@ -834,7 +819,6 @@ async def ban_detector(event):
     except Exception:
         pass
 
-
 RESERVED_COMMANDS = {'/rp', '/m', '/mwho', '/bot', '/common', '/name', '/banlog', '/pmlog', '/font', '/reveal', '/spamcheck', '/ttl', '/click', '/dl', '/dlast', '/getmsg', '/auto', '/status', '/clock', '/price', '/ping', '/save', '/del', '/ghost', '/help', '/ask', '/type', '/hack', '/hearts', '/moon', '/timer', '/userinfo', '/kang'}
 
 from telethon.tl.types import MessageEntityTextUrl
@@ -854,7 +838,6 @@ async def stealth_mention_handler(event):
     target_user = None
     clean_msg = ""
 
-    # ۱. پاسخ مخفی با // روی ریپلای
     if text.startswith('//') and event.is_reply:
         clean_msg = text[2:].strip()
         reply_obj = await event.get_reply_message()
@@ -864,7 +847,6 @@ async def stealth_mention_handler(event):
             except Exception:
                 pass
 
-    # ۲. پاسخ مخفی با یک اسلش / روی ریپلای
     elif text.startswith('/') and not text.startswith('/ask') and not text.startswith('/ping') and event.is_reply:
         clean_msg = text.lstrip('/').strip()
         reply_obj = await event.get_reply_message()
@@ -874,7 +856,6 @@ async def stealth_mention_handler(event):
             except Exception:
                 pass
 
-    # ۳. منشن آخرین فرد چت‌کننده با علامت +
     elif text.startswith('+ ') or text.startswith('++'):
         clean_msg = text.lstrip('+').strip()
         cid = event.chat_id
@@ -894,7 +875,6 @@ async def stealth_mention_handler(event):
             final_text = f"{user_name}: {clean_msg}"
             name_len = get_utf16_len(user_name)
 
-            # اتصال لینک مستقیم کاربر به متن نام او در سطح انتیتی
             entity = MessageEntityTextUrl(
                 offset=0,
                 length=name_len,
@@ -909,9 +889,6 @@ async def stealth_mention_handler(event):
         except Exception:
             pass
 
-
-  
-# --- بخش هوش مصنوعی ---
 @client.on(events.NewMessage(pattern=r'^/ask(?:\s+([\s\S]*))?$', outgoing=True))
 async def ask_cmd(event):
     question = (event.pattern_match.group(1) or '').strip()
@@ -950,7 +927,6 @@ async def ask_cmd(event):
     finally:
         AI_LOCK.pop(cid, None)
 
-# --- دستورات فان و متحرک ---
 @client.on(events.NewMessage(pattern=r'^/type(?:\s+([\s\S]+))?$', outgoing=True))
 async def type_cmd(event):
     text = event.pattern_match.group(1)
@@ -1013,7 +989,6 @@ async def moon_cmd(event):
             await asyncio.sleep(0.4)
         except Exception: pass
 
-# --- تایمر و شمارشگر معکوس ---
 @client.on(events.NewMessage(pattern=r'^/timer\s+(\d+)$', outgoing=True))
 async def timer_cmd(event):
     secs = int(event.pattern_match.group(1))
@@ -1030,7 +1005,6 @@ async def timer_cmd(event):
     try: await event.edit("⏰ **زمان به پایان رسید!**", parse_mode='md')
     except Exception: pass
 
-# --- اطلاعات دقیق و جامع کاربر ---
 @client.on(events.NewMessage(pattern=r'^/userinfo(?:\s+(\S+))?$', outgoing=True))
 async def userinfo_cmd(event):
     arg = event.pattern_match.group(1)
@@ -1063,9 +1037,6 @@ async def userinfo_cmd(event):
 ▫️ **لینک دائمی:** [پروفایل](tg://user?id={uid})"""
     await event.edit(info, parse_mode='md')
 
-# --- استیکرساز سریع (Kang) ---
-# --- استیکرساز سریع (Kang) ---
-# --- استیکرساز سریع و استاندارد (Kang) ---
 @client.on(events.NewMessage(pattern=r'^/kang(?:\s+([\s\S]+))?$', outgoing=True))
 async def kang_cmd(event):
     emoji = (event.pattern_match.group(1) or '🤔').strip()
@@ -1078,7 +1049,6 @@ async def kang_cmd(event):
         if not photo_bytes:
             await event.edit('❌ دریافت فایل انجام نشد.'); return
 
-        # تغییر سایز استاندارد به حداکثر 512 پیکسل با حفظ نسبت ابعاد
         image = Image.open(io.BytesIO(photo_bytes)).convert("RGBA")
         max_size = 512
         w, h = image.size
@@ -1086,12 +1056,10 @@ async def kang_cmd(event):
         new_w, new_h = int(w * scale), int(h * scale)
         image = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
 
-        # تبدیل به بایت‌های PNG
         output_io = io.BytesIO()
         image.save(output_io, format="PNG")
         resized_bytes = output_io.getvalue()
 
-        # نام و مشخصات پک کاربری
         pack_name = f"kang_{ME_ID}_v1_by_{ME_USER}" if ME_USER else f"kang_{ME_ID}_v1"
         pack_title = f"@{ME_USER or 'My'} Kang Pack"
 
@@ -1125,7 +1093,6 @@ async def kang_cmd(event):
     except Exception as e:
         await event.edit(f'❌ خطا در ساخت استیکر: {str(e)[:150]}')
 
-# --- سایر دستورات سلف‌بات ---
 @client.on(events.NewMessage(pattern=r'^/price\s+(on|off)$', chats='me'))
 async def price_cmd(event):
     global PRICE_ON
@@ -1188,7 +1155,6 @@ async def bot_cmd(event):
     await event.edit(f'🤖 سلف‌بات: {"روشن ✅" if MASTER_ON else "خاموش ❌"}')
 
 @client.on(events.NewMessage(pattern=r'^/status$', chats='me'))
-@client.on(events.NewMessage(pattern=r'^/status$', chats='me'))
 async def status_cmd(event):
     active_fonts_count = len(CUSTOM_FONTS) if CUSTOM_FONTS else len(FONTS)
     names_count = len(NAMES) if NAMES else 0
@@ -1240,15 +1206,14 @@ async def ghost(event):
     global GHOST_MODE
     GHOST_MODE = (event.pattern_match.group(1) == 'on')
     await event.edit(f'👻 روح: {"✅" if GHOST_MODE else "❌"}')
+
 def _clean_btn_text(txt: str) -> str:
-    """نرمال‌سازی متن: حذف اموجی، نیم‌فاصله، علائم و یکسان‌سازی حروف فارسی/عربی"""
     if not txt:
         return ""
     txt = str(txt).replace('ي', 'ی').replace('ك', 'ک')
     txt = re.sub(r'[\u200c\u200b\u200d\u200e\u200f\u064b-\u065f]', '', txt)
     txt = re.sub(r'[^\w\s]', ' ', txt)
     return ' '.join(txt.split()).strip().lower()
-
 
 async def click_loop():
     while True:
@@ -1270,7 +1235,6 @@ async def click_loop():
                                         raw_text = getattr(btn, 'text', '') or ''
                                         cleaned = _clean_btn_text(raw_text)
 
-                                        # تطابق غیرحساس به نیم‌فاصله، اموجی و کلمات کلیدی
                                         if (target_clean and (target_clean in cleaned or cleaned in target_clean)) or ('پیشی' in cleaned and 'بخوره' in cleaned):
                                             try:
                                                 await btn.click()
@@ -1304,7 +1268,6 @@ async def instant_clicker_handler(event):
     if not buttons:
         return
 
-    # استخراج کلمات هدف از دیکشنری یا لیست CLICKS
     targets = []
     if isinstance(CLICKS, dict):
         for v in CLICKS.values():
@@ -1315,7 +1278,6 @@ async def instant_clicker_handler(event):
             elif isinstance(v, str):
                 targets.append(_clean_btn_text(v))
     
-    # دکمه هدف پیش‌فرض
     targets.append(_clean_btn_text("بده پیشی بخوره"))
 
     try:
@@ -1324,25 +1286,21 @@ async def instant_clicker_handler(event):
                 raw_text = getattr(btn, 'text', '') or ''
                 cleaned = _clean_btn_text(raw_text)
 
-                # بررسی شباهت کلمات
                 matched = any(t and (t in cleaned or cleaned in t) for t in targets) or ('پیشی' in cleaned and 'بخوره' in cleaned)
 
                 if matched:
-                    # روش اول: استفاده از متد خود دکمه
                     try:
                         await btn.click()
                         return
                     except Exception:
                         pass
                     
-                    # روش دوم: استفاده از مختصات دکمه در پیام
                     try:
                         await event.click(row_idx, col_idx)
                         return
                     except Exception:
                         pass
 
-                    # روش سوم: کلیک با متن خام
                     try:
                         await event.click(text=raw_text)
                         return
@@ -1350,7 +1308,6 @@ async def instant_clicker_handler(event):
                         pass
     except Exception:
         pass
-
 
 @client.on(events.NewMessage(pattern=r'^/click\s+(on|off)$', chats='me'))
 async def click_toggle(event):
@@ -1384,21 +1341,18 @@ async def click_list(event):
         lines.append(f"• `{k}`: دکمه «{v.get('btn')}» در چت `{v.get('chat')}`")
     await event.edit('\n'.join(lines), parse_mode='md')
 
-# --- کنترل لاگ بن ---
 @client.on(events.NewMessage(pattern=r'^/banlog\s+(on|off)$', chats='me'))
 async def banlog_toggle(event):
     global BAN_LOG
     BAN_LOG = (event.pattern_match.group(1) == 'on')
     await event.edit(f'🚨 لاگ بن/اخراج: {"روشن ✅" if BAN_LOG else "خاموش ❌"}')
 
-# --- کنترل لاگ پی‌وی ---
 @client.on(events.NewMessage(pattern=r'^/pmlog\s+(on|off)$', chats='me'))
 async def pmlog_toggle(event):
     global PMLOG_ON
     PMLOG_ON = (event.pattern_match.group(1) == 'on')
     await event.edit(f'📩 لاگ پی‌وی (ادیت و حذف): {"روشن ✅" if PMLOG_ON else "خاموش ❌"}')
 
-# --- کنترل و سیستم ذخیره عکس و فیلم‌های تایمردار (TTL) ---
 @client.on(events.NewMessage(pattern=r'^/ttl\s+(on|off)$', chats='me'))
 async def ttl_toggle(event):
     global TTL_SAVE
@@ -1424,7 +1378,6 @@ async def ttl_saver_handler(event):
             name = ((getattr(sender, 'first_name', '') or '') + ' ' + (getattr(sender, 'last_name', '') or '')).strip() or 'ناشناس'
             uid = sender.id if sender else event.chat_id
 
-            # دانلود مستقیم مدیا با حفظ پسوند واقعی (عکس یا ویدیو)
             file_path = await event.download_media(file='/tmp/')
             if file_path and os.path.exists(file_path):
                 caption = f"⏳ **رسانه تایمردار ذخیره شد!**\n👤 فرستنده: {name} (`{uid}`)\n⏰ زمان خودتخریبی: {ttl_period} ثانیه"
@@ -1437,7 +1390,6 @@ async def ttl_saver_handler(event):
                     os.remove(file_path)
                 except Exception:
                     pass
-
 
 @client.on(events.NewMessage(pattern=r'^/help$', chats='me'))
 async def help_cmd(event):
