@@ -972,39 +972,41 @@ async def hack_cmd(event):
         except Exception: pass
 
 # دیکشنری نگهداری پیام‌های در انتظار سین
+# متغیر نگهداری پیام‌های منتظر سین
 PENDING_READ_ANIMATIONS = {}
 
-# دستور قلب (سین‌چک)
-@client.on(events.NewMessage(pattern=r'^\.hearts?$'))
-async def hearts_cmd(event):
-    if not event.out:
+@client.on(events.NewMessage(outgoing=True))
+async def fun_animations_handler(event):
+    if not event.text:
         return
-    frames = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💖", "🥰"]
-    try:
-        msg = await event.edit(frames[0])
-        PENDING_READ_ANIMATIONS[msg.id] = {
-            'chat_id': event.chat_id,
-            'frames': frames
-        }
-    except Exception:
-        pass
+    
+    text = event.raw_text.strip().lower()
+    
+    # دستور ماه: هم با نقطه (.moon) و هم با اسلش (/moon)
+    if text in ['.moon', '/moon']:
+        frames = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]
+        try:
+            msg = await event.edit(frames[0])
+            PENDING_READ_ANIMATIONS[msg.id] = {
+                'chat_id': event.chat_id,
+                'frames': frames
+            }
+        except Exception:
+            pass
 
-# دستور ماه (سین‌چک)
-@client.on(events.NewMessage(pattern=r'^\.moon$'))
-async def moon_cmd(event):
-    if not event.out:
-        return
-    frames = ["🌑", "🌒", "🌓", "🌔", "🌕", "🌖", "🌗", "🌘", "🌑"]
-    try:
-        msg = await event.edit(frames[0])
-        PENDING_READ_ANIMATIONS[msg.id] = {
-            'chat_id': event.chat_id,
-            'frames': frames
-        }
-    except Exception:
-        pass
+    # دستور قلب: هم با نقطه (.hearts / .heart) و هم با اسلش (/hearts / /heart)
+    elif text in ['.heart', '.hearts', '/heart', '/hearts']:
+        frames = ["❤️", "🧡", "💛", "💚", "💙", "💜", "🖤", "🤍", "💖", "🥰"]
+        try:
+            msg = await event.edit(frames[0])
+            PENDING_READ_ANIMATIONS[msg.id] = {
+                'chat_id': event.chat_id,
+                'frames': frames
+            }
+        except Exception:
+            pass
 
-# تشخیص سین شدن پیام توسط مخاطب و اجرای انیمیشن
+# بررسی خوانده شدن پیام در چت
 @client.on(events.MessageRead(inbox=False))
 async def on_message_read(event):
     read_max_id = event.max_id
