@@ -515,29 +515,60 @@ async def normalize_stored():
     if changed: save_autos(); save_clicks()
 
 async def update_profile_name(new_name):
+    """تغییر نام با مدیریت کامل FloodWait و جلوگیری از مسدود شدن ساعت"""
     for attempt in range(3):
         try:
-            await client(UpdateProfileRequest(last_name=new_name)); return True
-        except errors.FloodWaitError as e: await asyncio.sleep(e.seconds + 1)
-        except Exception: await asyncio.sleep(2)
+            await client(UpdateProfileRequest(last_name=new_name))
+            return True
+        except errors.FloodWaitError as e:
+            # تلگرام اعلام کرده چند ثانیه صبر کنیم
+            wait_time = e.seconds + 2
+            print(f"[Clock] تلگرام لیمیت موقت داد، خواب برای {wait_time} ثانیه", flush=True)
+            await asyncio.sleep(wait_time)
+        except Exception as e:
+            print(f"[Clock Update Error] {e}", flush=True)
+            await asyncio.sleep(3)
     return False
 
 async def clock_loop():
-    last_time = ''; last_minute = -1
+    """حلقه دائم و ضد کرش ساعت در نام"""
+    last_minute = -1
+    last_applied_name = ""
+    
     while True:
         try:
             if CLOCK_ON and MASTER_ON:
-                tz = timezone(timedelta(hours=3, minutes=30)); now = datetime.now(tz); minute = now.minute
-                if minute != last_minute:
-                    hour = now.hour; font = get_font_for_hour(hour); t = small_time_with_font(font)
+                tz = timezone(timedelta(hours=3, minutes=30))
+                now = datetime.now(tz)
+                current_minute = now.minute
+
+                # فقط زمانی که دقیقه تغییر کرده باشد تلاش برای تغییر نام انجام شود
+                if current_minute != last_minute:
+                    hour = now.hour
+                    font = get_font_for_hour(hour)
+                    t = small_time_with_font(font)
+                    
+                    # استخراج نام از دیتابیس یا نام پیش‌فرض
                     name_part = safe_name_part(NAMES[hour % len(NAMES)]) if NAMES else safe_name_part(BASE_LAST)
                     new_name = f"{name_part} {t}".strip()
-                    if new_name != last_time:
+
+                    # اگر نام دقیقاً همان نام فعلی است درخواست به تلگرام نفرستد
+                    if new_name != last_applied_name:
                         ok = await update_profile_name(new_name)
-                        if ok: last_time = new_name; last_minute = minute
-            else: last_minute = -1; last_time = ''
-        except Exception: pass
+                        if ok:
+                            last_applied_name = new_name
+                            last_minute = current_minute
+            else:
+                last_minute = -1
+                last_applied_name = ""
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Clock Loop Error] {e}", flush=True)
+            
+        # چک کردن وضعیت هر ۵ ثانیه
         await asyncio.sleep(5)
+
 
 async def probe_loop():
     while True:
